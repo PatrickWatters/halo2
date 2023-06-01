@@ -107,6 +107,7 @@ getrandom = { version = "0.2", features = ["js"] }
 default = ["batch","gpu"]
 dev-graph = ["plotters", "tabbycat"]
 gadget-traces = ["backtrace"]
+thread-safe-region = []
 sanity-checks = []
 batch = ["rand_core/getrandom"]
 circuit-params = []
@@ -120,3 +121,5 @@ bench = false
 [[example]]
 name = "circuit-layout"
 required-features = ["dev-graph"]
+
+
