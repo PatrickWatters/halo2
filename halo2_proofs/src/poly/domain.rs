@@ -542,11 +542,14 @@ pub fn gpu_fft_multiple<G: Group>(
 #[test]
 fn test_best_fft_multiple_gpu() {
     use crate::gpu::LockedMultiFFTKernel;
-    use crate::pairing::bn256::Fr;
-    use pairing::bn256::Bn256;
+    //use crate::pairing::bn256::Fr;
+    use crate::halo2curves::bn256::Fr;
+    use crate::halo2curves::bn256::Bn256;
+
+    //use pairing::bn256::Bn256;
 
     use crate::poly::EvaluationDomain;
-    use ark_std::{end_timer, start_timer};
+    //use ark_std::{end_timer, start_timer};
     use rand_core::OsRng;
 
     for k in 10..25 {
@@ -559,15 +562,15 @@ fn test_best_fft_multiple_gpu() {
         let domain: EvaluationDomain<Fr> = EvaluationDomain::new(1, k);
 
         let message = format!("prev_fft degree {}", k);
-        let start = start_timer!(|| message);
+        //let start = start_timer!(|| message);
 
         let mut prev_fft_coeffs = coeffs.clone();
         best_fft(&mut prev_fft_coeffs, domain.get_omega(), k);
 
-        end_timer!(start);
+        //end_timer!(start);
 
         let message = format!("gpu_fft degree {}", k);
-        let start = start_timer!(|| message);
+        //let start = start_timer!(|| message);
 
         let mut optimized_fft_coeffs = coeffs.clone();
         let mut fft_kern = Some(LockedMultiFFTKernel::<Fr>::new(k as usize, false));
@@ -580,7 +583,7 @@ fn test_best_fft_multiple_gpu() {
         )
         .unwrap();
 
-        end_timer!(start);
+        //end_timer!(start);
 
         assert_eq!(prev_fft_coeffs, optimized_fft_coeffs);
     }
@@ -589,8 +592,9 @@ fn test_best_fft_multiple_gpu() {
 #[test]
 fn test_fft() {
     use crate::poly::EvaluationDomain;
-    use ark_std::{end_timer, start_timer};
-    use pairing::bn256::Fr;
+    //use ark_std::{end_timer, start_timer};
+    //use pairing::bn256::Fr;
+    use halo2curves::bn256::Fr;
     use rand_core::OsRng;
 
     for k in 1..20 {
@@ -603,12 +607,12 @@ fn test_fft() {
         let domain: EvaluationDomain<Fr> = EvaluationDomain::new(1, k);
 
         let message = format!("prev_fft degree {}", k);
-        let start = start_timer!(|| message);
+        //let start = start_timer!(|| message);
 
         let mut prev_fft_coeffs = coeffs.clone();
         best_fft(&mut prev_fft_coeffs, domain.get_omega(), k);
 
-        end_timer!(start);
+        //end_timer!(start);
     }
 }
 
