@@ -16,7 +16,7 @@ use std::ops::{Add, Deref, DerefMut, Index, IndexMut, Mul, RangeFrom, RangeFull,
 
 /// Generic commitment scheme structures
 pub mod commitment;
-mod domain;
+pub mod domain;
 mod query;
 mod strategy;
 

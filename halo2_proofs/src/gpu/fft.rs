@@ -1,4 +1,6 @@
-use crate::arithmetic::Group;
+//use crate::arithmetic::Group;
+use crate::halo2curves::group::Group;
+
 use crate::gpu::{
     error::{GPUError, GPUResult},
     get_lock_name_and_gpu_range, locks, sources,

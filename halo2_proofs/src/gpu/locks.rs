@@ -1,4 +1,6 @@
-use crate::arithmetic::Group;
+//use crate::arithmetic::Group;
+use crate::halo2curves::group::Group;
+
 use fs2::FileExt;
 use log::{debug, info, warn};
 use std::fs::File;
