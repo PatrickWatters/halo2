@@ -97,9 +97,9 @@ where
     fn setup_pq_omegas(&mut self, omega: &G::Scalar, n: usize, max_deg: u32) -> GPUResult<()> {
         // Precalculate:
         // [omega^(0/(2^(deg-1))), omega^(1/(2^(deg-1))), ..., omega^((2^(deg-1)-1)/(2^(deg-1)))]
-        let mut pq = vec![G::Scalar::zero(); 1 << max_deg >> 1];
+        let mut pq = vec![group::ff::Field::ZERO; 1 << max_deg >> 1];
         let twiddle = omega.pow_vartime([(n >> max_deg) as u64]);
-        pq[0] = G::Scalar::one();
+        pq[0] = group::ff::Field::ONE;
         if max_deg > 1 {
             pq[1] = twiddle;
             for i in 2..(1 << max_deg >> 1) {
@@ -110,7 +110,7 @@ where
         self.pq_buffer.write_from(0, &pq)?;
 
         // Precalculate [omega, omega^2, omega^4, omega^8, ..., omega^(2^31)]
-        let mut omegas = vec![G::Scalar::zero(); 32];
+        let mut omegas = vec![group::ff::Field::ZERO; 32];
         omegas[0] = *omega;
         for i in 1..LOG2_MAX_ELEMENTS {
             omegas[i] = omegas[i - 1].pow_vartime([2u64]);

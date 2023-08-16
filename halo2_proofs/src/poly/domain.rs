@@ -13,6 +13,8 @@ use group::{
     Group,
 };
 
+use group::Group as CryptGroup;
+
 use std::marker::PhantomData;
 #[cfg(feature = "gpu")]
 use crate::gpu;
@@ -541,17 +543,16 @@ pub fn gpu_fft_multiple<G: Group>(
 #[cfg(feature = "gpu")]
 #[test]
 fn test_best_fft_multiple_gpu() {
+
     use crate::gpu::LockedMultiFFTKernel;
-    //use crate::pairing::bn256::Fr;
     use crate::halo2curves::bn256::Fr;
-    use crate::halo2curves::bn256::Bn256;
-
-    //use pairing::bn256::Bn256;
-
+    use halo2curves::bn256::Bn256;    
+    use::halo2curves::bn256::G1;
+    
     use crate::poly::EvaluationDomain;
     use ark_std::{end_timer, start_timer};
     use rand_core::OsRng;
-
+    
     for k in 10..25 {
         let rng = OsRng;
         // polynomial degree n = 2^k
@@ -573,7 +574,7 @@ fn test_best_fft_multiple_gpu() {
         let start = start_timer!(|| message);
 
         let mut optimized_fft_coeffs = coeffs.clone();
-        let mut fft_kern = Some(LockedMultiFFTKernel::<Fr>::new(k as usize, false));
+        let mut fft_kern: Option<LockedMultiFFTKernel<_>> = Some(LockedMultiFFTKernel::<G1>::new(k as usize, false));
 
         best_fft_multiple_gpu(
             &mut fft_kern,
@@ -593,7 +594,7 @@ fn test_best_fft_multiple_gpu() {
 fn test_fft() {
     use crate::poly::EvaluationDomain;
     use ark_std::{end_timer, start_timer};
-    //use pairing::bn256::Fr;
+
     use halo2curves::bn256::Fr;
     use rand_core::OsRng;
 
