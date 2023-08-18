@@ -544,7 +544,7 @@ pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
 }
 
 #[cfg(feature = "gpu")]
-#[test]
+#[test_log::test] // Automatically wraps test to initialize logging
 fn test_best_fft_multiple_gpu() {
 
     use crate::gpu::LockedMultiFFTKernel;
