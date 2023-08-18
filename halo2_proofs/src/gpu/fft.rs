@@ -136,6 +136,7 @@ where
         omega: &Scalar,
         log_n: u32,
     ) -> GPUResult<()> {
+        println!("{}", log_n.to_string());
         let n = 1 << log_n;
         let mut src_buffer: opencl::Buffer<G> = self.program.create_buffer::<G>(n)?;
         let mut dst_buffer: opencl::Buffer<G> = self.program.create_buffer::<G>(n)?;
