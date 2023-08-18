@@ -514,7 +514,7 @@ where
 #[cfg(feature = "gpu")]
 pub fn best_fft_multiple_gpu<Scalar: Field, G: FftGroup<Scalar>>(
     kern: &mut Option<gpu::LockedMultiFFTKernel<Scalar,G>>,
-    polys: &mut [&mut [G]],
+    polys: &mut [&mut [Scalar]],
     omega: &Scalar,
     log_n: u32,
 ) -> gpu::GPUResult<()> {
@@ -534,7 +534,7 @@ pub fn best_fft_multiple_gpu<Scalar: Field, G: FftGroup<Scalar>>(
 #[cfg(feature = "gpu")]
 pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
     kern: &mut gpu::MultiFFTKernel<Scalar,G>,
-    polys: &mut [&mut [G]],
+    polys: &mut [&mut [Scalar]],
     omega: &Scalar,
     log_n: u32,
 ) -> gpu::GPUResult<()> {

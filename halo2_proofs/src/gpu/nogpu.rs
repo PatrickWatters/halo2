@@ -1,6 +1,6 @@
 use super::error::{GPUError, GPUResult};
-use crate::pairing::ff::{PrimeField, ScalarEngine};
-use crate::pairing::CurveAffine;
+use crate::halo2curves::pairing::ff::{PrimeField, ScalarEngine};
+use crate::halo2curves::pairing::CurveAffine;
 use crate::worker::Worker;
 use std::marker::PhantomData;
 use std::sync::Arc;
