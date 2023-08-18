@@ -3,8 +3,8 @@ use crate::arithmetic::FftGroup;
 use ff::Field;
 
 use ff_cl_gen as ffgen;
-//use pairing::bn256::{Fq, Fr};
-use halo2curves::bn256::{Fq, Fr};
+use pairing::bn256::{Fq, Fr};
+//use halo2curves::bn256::{Fq, Fr};
 
 // Instead of having a very large OpenCL program written for a specific curve, with a lot of
 // rudandant codes (As OpenCL doesn't have generic types or templates), this module will dynamically
