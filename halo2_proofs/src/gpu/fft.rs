@@ -137,8 +137,8 @@ where
         log_n: u32,
     ) -> GPUResult<()> {
         let n = 1 << log_n;
-        let mut src_buffer = self.program.create_buffer::<G>(n)?;
-        let mut dst_buffer = self.program.create_buffer::<G>(n)?;
+        let mut src_buffer: opencl::Buffer<G> = self.program.create_buffer::<G>(n)?;
+        let mut dst_buffer: opencl::Buffer<G> = self.program.create_buffer::<G>(n)?;
 
         let max_deg = cmp::min(MAX_LOG2_RADIX, log_n);
         self.setup_pq_omegas(omega, n, max_deg)?;
