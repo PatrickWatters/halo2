@@ -10,8 +10,11 @@ use group::{
 
 #[cfg(feature = "gpu")]
 use crate::gpu;
+#[cfg(feature = "gpu")]
 use crate::gpu::LockedMultiFFTKernel;
+#[cfg(feature = "gpu")]
 use::halo2curves::bn256::G1;
+#[cfg(feature = "gpu")]
 use log::{info, warn};
 
 
@@ -252,6 +255,7 @@ pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
 /// 
 #[cfg(feature = "gpu")]
 pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [Scalar], omega: Scalar, log_n: u32) {
+
 
     let k = a.len() as usize;
     assert_eq!(k, 1 << log_n);
