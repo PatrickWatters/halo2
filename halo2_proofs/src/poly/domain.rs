@@ -14,6 +14,7 @@ use group::{
 };
 
 use group::Group as CryptGroup;
+use test_log;
 
 use std::marker::PhantomData;
 #[cfg(feature = "gpu")]
