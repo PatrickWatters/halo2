@@ -211,7 +211,7 @@ where
 
 pub fn best_fft_multiple_gpu<Scalar: Field, G: FftGroup<Scalar>>(
     kern: &mut Option<gpu::LockedMultiFFTKernel<Scalar,G>>,
-    polys: &mut [&mut [G]],
+    polys: &mut [&mut [Scalar]],
     omega: &Scalar,
     log_n: u32,
 ) -> gpu::GPUResult<()> {
@@ -231,7 +231,7 @@ pub fn best_fft_multiple_gpu<Scalar: Field, G: FftGroup<Scalar>>(
 #[cfg(feature = "gpu")]
 pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
     kern: &mut gpu::MultiFFTKernel<Scalar,G>,
-    polys: &mut [&mut [G]],
+    polys: &mut [&mut [Scalar]],
     omega: &Scalar,
     log_n: u32,
 ) -> gpu::GPUResult<()> {
@@ -254,7 +254,7 @@ pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
 ///  
 /// 
 #[cfg(feature = "gpu")]
-pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [Scalar], omega: Scalar, log_n: u32) {
 
     let k = a.len() as usize;
     assert_eq!(k, 1 << log_n);
@@ -283,7 +283,7 @@ pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, 
 /// by $n$.
 ///
 /// This will use multithreading if beneficial.
-pub fn best_fft_cpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
     fn bitreverse(mut n: usize, l: usize) -> usize {
         let mut r = 0;
         for _ in 0..l {
