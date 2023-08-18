@@ -26,7 +26,7 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 pub mod arithmetic;
-pub use pairing;
+//pub use pairing;
 pub mod circuit;
 pub use halo2curves;
 mod multicore;

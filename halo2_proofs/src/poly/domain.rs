@@ -2,7 +2,7 @@
 //! domain that is of a suitable size for the application.
 
 use crate::{
-    arithmetic::{best_fft, parallelize},
+    arithmetic::{best_fft, parallelize, FftGroup},
     plonk::Assigned,
 };
 
@@ -19,6 +19,7 @@ use std::marker::PhantomData;
 #[cfg(feature = "gpu")]
 use crate::gpu;
 use log::{info, warn};
+
 /// This structure contains precomputed constants and other details needed for
 /// performing operations on an evaluation domain of size $2^k$ and an extended
 /// domain of size $2^{k} * j$ with $j \neq 0$.
@@ -491,10 +492,12 @@ pub struct PinnedEvaluationDomain<'a, F: Field> {
 
 /// Config gpu fft kernel
 #[cfg(feature = "gpu")]
-pub fn create_fft_kernel<G>(_log_d: usize, priority: bool) -> Option<gpu::MultiFFTKernel<G>>
+pub fn create_fft_kernel<Scalar,G>(_log_d: usize, priority: bool) -> Option<gpu::MultiFFTKernel<Scalar,G>>
 where
-    G: Group,
+    G: FftGroup<Scalar>,
+    Scalar: Field,
 {
+
     match gpu::MultiFFTKernel::create(priority) {
         Ok(k) => {
             info!("GPU FFT kernel instantiated!");
@@ -509,15 +512,15 @@ where
 
 /// Wrap `gpu_fft_multiple`
 #[cfg(feature = "gpu")]
-pub fn best_fft_multiple_gpu<G: Group>(
-    kern: &mut Option<gpu::LockedMultiFFTKernel<G>>,
-    polys: &mut [&mut [G::Scalar]],
-    omega: &G::Scalar,
+pub fn best_fft_multiple_gpu<Scalar: Field, G: FftGroup<Scalar>>(
+    kern: &mut Option<gpu::LockedMultiFFTKernel<Scalar,G>>,
+    polys: &mut [&mut [G]],
+    omega: &Scalar,
     log_n: u32,
 ) -> gpu::GPUResult<()> {
     if let Some(ref mut kern) = kern {
         if kern
-            .with(|k: &mut gpu::MultiFFTKernel<G>| gpu_fft_multiple(k, polys, omega, log_n))
+            .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| gpu_fft_multiple(k, polys, omega, log_n))
             .is_ok()
         {
             println!("use multiple GPUs");
@@ -529,10 +532,10 @@ pub fn best_fft_multiple_gpu<G: Group>(
 
 /// Use multiple gpu fft
 #[cfg(feature = "gpu")]
-pub fn gpu_fft_multiple<G: Group>(
-    kern: &mut gpu::MultiFFTKernel<G>,
-    polys: &mut [&mut [G::Scalar]],
-    omega: &G::Scalar,
+pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
+    kern: &mut gpu::MultiFFTKernel<Scalar,G>,
+    polys: &mut [&mut [G]],
+    omega: &Scalar,
     log_n: u32,
 ) -> gpu::GPUResult<()> {
     kern.fft_multiple(polys, omega, log_n)?;
@@ -546,9 +549,9 @@ fn test_best_fft_multiple_gpu() {
 
     use crate::gpu::LockedMultiFFTKernel;
     use crate::halo2curves::bn256::Fr;
-    use halo2curves::bn256::Bn256;    
     use::halo2curves::bn256::G1;
-    
+
+    use ff::Field;
     use crate::poly::EvaluationDomain;
     use ark_std::{end_timer, start_timer};
     use rand_core::OsRng;
@@ -574,7 +577,7 @@ fn test_best_fft_multiple_gpu() {
         let start = start_timer!(|| message);
 
         let mut optimized_fft_coeffs = coeffs.clone();
-        let mut fft_kern: Option<LockedMultiFFTKernel<_>> = Some(LockedMultiFFTKernel::<G1>::new(k as usize, false));
+        let mut fft_kern: Option<LockedMultiFFTKernel<_,_>> = Some(LockedMultiFFTKernel::<_,Fr>::new(k as usize, false));
 
         best_fft_multiple_gpu(
             &mut fft_kern,

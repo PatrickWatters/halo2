@@ -8,6 +8,13 @@ use group::{
     Curve, Group, GroupOpsOwned, ScalarMulOwned,
 };
 
+#[cfg(feature = "gpu")]
+use crate::gpu;
+use crate::gpu::LockedMultiFFTKernel;
+use::halo2curves::bn256::G1;
+use log::{info, warn};
+
+
 pub use halo2curves::{CurveAffine, CurveExt};
 
 /// This represents an element of a group with basic operations that can be
@@ -173,6 +180,64 @@ pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Cu
     }
 }
 
+/// Config gpu fft kernel
+#[cfg(feature = "gpu")]
+pub fn create_fft_kernel<Scalar,G>(_log_d: usize, priority: bool) -> Option<gpu::MultiFFTKernel<Scalar,G>>
+where
+    G: FftGroup<Scalar>,
+    Scalar: Field,
+{
+
+    match gpu::MultiFFTKernel::create(priority) {
+        Ok(k) => {
+            info!("GPU FFT kernel instantiated!");
+            Some(k)
+        }
+        Err(e) => {
+            warn!("Cannot instantiate GPU FFT kernel! Error: {}", e);
+            None
+        }
+    }
+}
+
+/// Wrap `gpu_fft_multiple`
+#[cfg(feature = "gpu")]
+
+//pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+
+
+pub fn best_fft_multiple_gpu<Scalar: Field, G: FftGroup<Scalar>>(
+    kern: &mut Option<gpu::LockedMultiFFTKernel<Scalar,G>>,
+    polys: &mut [&mut [G]],
+    omega: &Scalar,
+    log_n: u32,
+) -> gpu::GPUResult<()> {
+    if let Some(ref mut kern) = kern {
+        if kern
+            .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| gpu_fft_multiple(k, polys, omega, log_n))
+            .is_ok()
+        {
+            println!("use multiple GPUs");
+            return Ok(());
+        }
+    }
+    Ok(())
+}
+
+/// Use multiple gpu fft
+#[cfg(feature = "gpu")]
+pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
+    kern: &mut gpu::MultiFFTKernel<Scalar,G>,
+    polys: &mut [&mut [G]],
+    omega: &Scalar,
+    log_n: u32,
+) -> gpu::GPUResult<()> {
+    kern.fft_multiple(polys, omega, log_n)?;
+
+    Ok(())
+}
+
+
 /// Performs a radix-$2$ Fast-Fourier Transformation (FFT) on a vector of size
 /// $n = 2^k$, when provided `log_n` = $k$ and an element of multiplicative
 /// order $n$ called `omega` ($\omega$). The result is that the vector `a`, when
@@ -183,7 +248,40 @@ pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Cu
 /// by $n$.
 ///
 /// This will use multithreading if beneficial.
+///  
+/// 
+#[cfg(feature = "gpu")]
 pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+
+    
+    let k = a.len() as usize;
+    assert_eq!(k, 1 << log_n);
+
+    let mut fft_kern: Option<LockedMultiFFTKernel<_,_>> = Some(LockedMultiFFTKernel::<Scalar,G>::new(k as usize, false));
+
+    best_fft_multiple_gpu(
+     &mut fft_kern,
+     &mut [a],
+     &omega,
+     k as u32,
+    ).unwrap();
+
+}
+
+
+
+
+/// Performs a radix-$2$ Fast-Fourier Transformation (FFT) on a vector of size
+/// $n = 2^k$, when provided `log_n` = $k$ and an element of multiplicative
+/// order $n$ called `omega` ($\omega$). The result is that the vector `a`, when
+/// interpreted as the coefficients of a polynomial of degree $n - 1$, is
+/// transformed into the evaluations of this polynomial at each of the $n$
+/// distinct powers of $\omega$. This transformation is invertible by providing
+/// $\omega^{-1}$ in place of $\omega$ and dividing each resulting field element
+/// by $n$.
+///
+/// This will use multithreading if beneficial.
+pub fn best_fft_cp<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
     fn bitreverse(mut n: usize, l: usize) -> usize {
         let mut r = 0;
         for _ in 0..l {
@@ -247,7 +345,6 @@ pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, 
         recursive_butterfly_arithmetic(a, n, 1, &twiddles)
     }
 }
-
 /// This perform recursive butterfly arithmetic
 pub fn recursive_butterfly_arithmetic<Scalar: Field, G: FftGroup<Scalar>>(
     a: &mut [G],

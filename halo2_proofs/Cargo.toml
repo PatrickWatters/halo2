@@ -71,11 +71,11 @@ ark-std = { version = "0.3", features = ["print-trace"] }
 
 # gpu feature
 
-pairing = { git = 'https://github.com/starslabhq/pairing', package = "pairing_bn256", branch = "primeFieldChar" }
+#pairing = { git = 'https://github.com/starslabhq/pairing', package = "pairing_bn256", branch = "primeFieldChar" }
 
 rust-gpu-tools = { version = "0.3.0", optional = true }
-ff-cl-gen = { git = 'https://github.com/starslabhq/ff-cl-gen', optional = true,  branch = "gpuFft" }
-#ff-cl-gen = { path = '../../ff-cl-gen', optional = true}
+#ff-cl-gen = { git = 'https://github.com/starslabhq/ff-cl-gen', optional = true,  branch = "gpuFft" }
+ff-cl-gen = { path = '../../ff-cl-gen', optional = true}
 
 fs2 = { version = "0.4.3", optional = true }
 
@@ -94,7 +94,7 @@ rand_core = { version = "0.6", default-features = false, features = ["getrandom"
 getrandom = { version = "0.2", features = ["js"] }
 
 [features]
-default = ["batch", "gpu"]
+default = ["batch","gpu"]
 dev-graph = ["plotters", "tabbycat"]
 gadget-traces = ["backtrace"]
 sanity-checks = []

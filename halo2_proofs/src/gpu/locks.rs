@@ -1,6 +1,6 @@
-//use crate::arithmetic::Group;
-use crate::halo2curves::group::Group;
-
+use crate::arithmetic::FftGroup;
+//use crate::halo2curves::group::Group;
+use ff::Field;
 use fs2::FileExt;
 use log::{debug, info, warn};
 use std::fs::File;
@@ -124,22 +124,25 @@ macro_rules! locked_kernel {
     ($class:ident, $kern:ident, $func:ident, $name:expr) => {
         /// gpu fft locked kernel
         #[allow(missing_debug_implementations)]
-        pub struct $class<G>
+        pub struct $class<Scalar,G>
         where
-            G: Group,
+            G: FftGroup<Scalar>,
+            Scalar: Field,
         {
             log_d: usize,
             priority: bool,
-            kernel: Option<$kern<G>>,
+            kernel: Option<$kern<Scalar,G>>,
         }
 
-        impl<G> $class<G>
+        impl<Scalar,G> $class<Scalar,G>
+
         where
-            G: Group,
+            G: FftGroup<Scalar>,
+            Scalar: Field,
         {
             /// New gpu kernel macro
-            pub fn new(log_d: usize, priority: bool) -> $class<G> {
-                $class::<G> {
+            pub fn new(log_d: usize, priority: bool) -> $class<Scalar,G> {
+                $class::<Scalar,G> {
                     log_d,
                     priority,
                     kernel: None,
@@ -150,7 +153,7 @@ macro_rules! locked_kernel {
                 if self.kernel.is_none() {
                     PriorityLock::wait(self.priority);
                     info!("GPU is available for {}!", $name);
-                    self.kernel = $func::<G>(self.log_d, self.priority);
+                    self.kernel = $func::<Scalar,G>(self.log_d, self.priority);
                 }
             }
 
@@ -166,7 +169,7 @@ macro_rules! locked_kernel {
             /// Gpu kernel config
             pub fn with<F, R>(&mut self, mut f: F) -> GPUResult<R>
             where
-                F: FnMut(&mut $kern<G>) -> GPUResult<R>,
+                F: FnMut(&mut $kern<Scalar,G>) -> GPUResult<R>,
             {
                 if let Ok(flag) = std::env::var("BELLMAN_USE_CPU") {
                     if flag == "1" {

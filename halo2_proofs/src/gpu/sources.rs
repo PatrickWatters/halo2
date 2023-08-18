@@ -1,9 +1,10 @@
-//use crate::arithmetic::Group;
-use crate::halo2curves::group::Group;
+use crate::arithmetic::FftGroup;
+//use crate::halo2curves::group::Group;
+use ff::Field;
 
 use ff_cl_gen as ffgen;
-use pairing::bn256::{Fq, Fr};
-//use halo2curves::bn256::{Fq, Fr};
+//use pairing::bn256::{Fq, Fr};
+use halo2curves::bn256::{Fq, Fr};
 
 // Instead of having a very large OpenCL program written for a specific curve, with a lot of
 // rudandant codes (As OpenCL doesn't have generic types or templates), this module will dynamically
@@ -43,9 +44,10 @@ fn multiexp(point: &str, exp: &str) -> String {
 }
 
 /// WARNING: This function works only with Short Weierstrass Jacobian curves with Fq2 extension field.
-pub fn kernel<G>(limb64: bool) -> String
+pub fn kernel<Scalar,G>(limb64: bool) -> String
 where
-    G: Group,
+    G: FftGroup<Scalar>,
+    Scalar: Field,
 {
     vec![
         if limb64 {

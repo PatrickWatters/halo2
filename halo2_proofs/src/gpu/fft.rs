@@ -1,12 +1,13 @@
-//use crate::arithmetic::Group;
-use crate::halo2curves::group::Group;
+use crate::arithmetic::FftGroup;
+//use crate::halo2curves::group::Group;
+use std::marker::PhantomData;
 
 use crate::gpu::{
     error::{GPUError, GPUResult},
     get_lock_name_and_gpu_range, locks, sources,
 };
 use crate::worker::THREAD_POOL;
-use group::ff::Field;
+use ff::Field;
 use log::{error, info};
 use rayon::join;
 use rust_gpu_tools::*;
@@ -20,28 +21,32 @@ const MAX_LOG2_LOCAL_WORK_SIZE: u32 = 8; // 256
 
 /// SingleFFTKernel
 #[allow(missing_debug_implementations)]
-pub struct SingleFFTKernel<G>
+pub struct SingleFFTKernel<Scalar,G>
+
 where
-    G: Group,
+    G: FftGroup<Scalar>,
+    Scalar: Field,
 {
     program: opencl::Program,
-    pq_buffer: opencl::Buffer<G::Scalar>,
-    omegas_buffer: opencl::Buffer<G::Scalar>,
+    pq_buffer: opencl::Buffer<Scalar>,
+    omegas_buffer: opencl::Buffer<Scalar>,
     #[allow(dead_code)]
     priority: bool,
+    phantom: PhantomData<G>,
 }
 
-impl<G> SingleFFTKernel<G>
+impl<Scalar,G> SingleFFTKernel<Scalar,G>
 where
-    G: Group,
+    G: FftGroup<Scalar>,
+    Scalar: Field,
 {
     /// New gpu fft kernel device
-    pub fn create(device: opencl::Device, priority: bool) -> GPUResult<SingleFFTKernel<G>> {
-        let src = sources::kernel::<G>(device.brand() == opencl::Brand::Nvidia);
+    pub fn create(device: opencl::Device, priority: bool) -> GPUResult<SingleFFTKernel<Scalar,G>> {
+        let src = sources::kernel::<Scalar,G>(device.brand() == opencl::Brand::Nvidia);
 
         let program = opencl::Program::from_opencl(device, &src)?;
-        let pq_buffer = program.create_buffer::<G::Scalar>(1 << MAX_LOG2_RADIX >> 1)?;
-        let omegas_buffer = program.create_buffer::<G::Scalar>(LOG2_MAX_ELEMENTS)?;
+        let pq_buffer = program.create_buffer::<Scalar>(1 << MAX_LOG2_RADIX >> 1)?;
+        let omegas_buffer = program.create_buffer::<Scalar>(LOG2_MAX_ELEMENTS)?;
 
         info!("FFT: Device: {}", program.device().name());
 
@@ -50,6 +55,8 @@ where
             pq_buffer,
             omegas_buffer,
             priority,
+            phantom: PhantomData,
+
         })
     }
 
@@ -60,8 +67,8 @@ where
     /// * `max_deg` - The precalculated values pq` and `omegas` are valid for radix degrees up to `max_deg`
     fn radix_fft_round(
         &mut self,
-        src_buffer: &opencl::Buffer<G::Scalar>,
-        dst_buffer: &opencl::Buffer<G::Scalar>,
+        src_buffer: &opencl::Buffer<G>,
+        dst_buffer: &opencl::Buffer<G>,
         log_n: u32,
         log_p: u32,
         deg: u32,
@@ -84,7 +91,7 @@ where
             .arg(dst_buffer)
             .arg(&self.pq_buffer)
             .arg(&self.omegas_buffer)
-            .arg(opencl::LocalBuffer::<G::Scalar>::new(1 << deg))
+            .arg(opencl::LocalBuffer::<Scalar>::new(1 << deg))
             .arg(n)
             .arg(log_p)
             .arg(deg)
@@ -94,12 +101,12 @@ where
     }
 
     /// Share some precalculated values between threads to boost the performance
-    fn setup_pq_omegas(&mut self, omega: &G::Scalar, n: usize, max_deg: u32) -> GPUResult<()> {
+    fn setup_pq_omegas(&mut self, omega: &Scalar, n: usize, max_deg: u32) -> GPUResult<()> {
         // Precalculate:
         // [omega^(0/(2^(deg-1))), omega^(1/(2^(deg-1))), ..., omega^((2^(deg-1)-1)/(2^(deg-1)))]
-        let mut pq = vec![group::ff::Field::ZERO; 1 << max_deg >> 1];
+        let mut pq = vec![Scalar::ZERO; 1 << max_deg >> 1];
         let twiddle = omega.pow_vartime([(n >> max_deg) as u64]);
-        pq[0] = group::ff::Field::ONE;
+        pq[0] = Scalar::ONE;
         if max_deg > 1 {
             pq[1] = twiddle;
             for i in 2..(1 << max_deg >> 1) {
@@ -110,7 +117,7 @@ where
         self.pq_buffer.write_from(0, &pq)?;
 
         // Precalculate [omega, omega^2, omega^4, omega^8, ..., omega^(2^31)]
-        let mut omegas = vec![group::ff::Field::ZERO; 32];
+        let mut omegas = vec![Scalar::ZERO; 32];
         omegas[0] = *omega;
         for i in 1..LOG2_MAX_ELEMENTS {
             omegas[i] = omegas[i - 1].pow_vartime([2u64]);
@@ -125,13 +132,13 @@ where
     /// * `log_n` - Specifies log2 of number of elements
     pub fn radix_fft(
         &mut self,
-        a: &mut [G::Scalar],
-        omega: &G::Scalar,
+        a: &mut [G],
+        omega: &Scalar,
         log_n: u32,
     ) -> GPUResult<()> {
         let n = 1 << log_n;
-        let mut src_buffer = self.program.create_buffer::<G::Scalar>(n)?;
-        let mut dst_buffer = self.program.create_buffer::<G::Scalar>(n)?;
+        let mut src_buffer = self.program.create_buffer::<G>(n)?;
+        let mut dst_buffer = self.program.create_buffer::<G>(n)?;
 
         let max_deg = cmp::min(MAX_LOG2_RADIX, log_n);
         self.setup_pq_omegas(omega, n, max_deg)?;
@@ -153,20 +160,23 @@ where
 
 /// Gpu fft kernel vec
 #[allow(missing_debug_implementations)]
-pub struct MultiFFTKernel<G>
+pub struct MultiFFTKernel<Scalar,G>
 where
-    G: Group,
+    G: FftGroup<Scalar>,
+    Scalar: Field,
 {
-    kernels: Vec<SingleFFTKernel<G>>,
+    //dummy:   G,
+    kernels: Vec<SingleFFTKernel<Scalar,G>>,
     _lock: locks::GPULock,
 }
 
-impl<G> MultiFFTKernel<G>
+impl<Scalar,G> MultiFFTKernel<Scalar,G>
 where
-    G: Group,
+    G: FftGroup<Scalar>,
+    Scalar: Field,
 {
     /// New gpu kernel device
-    pub fn create(priority: bool) -> GPUResult<MultiFFTKernel<G>> {
+    pub fn create(priority: bool) -> GPUResult<MultiFFTKernel<Scalar,G>> {
         let mut all_devices = opencl::Device::all();
         let all_num = all_devices.len();
         //let all_num =1;
@@ -179,7 +189,7 @@ where
         // use all of the  GPUs
         let kernels: Vec<_> = devices
             .into_iter()
-            .map(|d| (d, SingleFFTKernel::<G>::create(d.clone(), priority)))
+            .map(|d| (d, SingleFFTKernel::<Scalar, G>::create(d.clone(), priority)))
             .filter_map(|(device, res)| {
                 if let Err(ref e) = res {
                     error!(
@@ -201,8 +211,8 @@ where
     /// fft_multiple call for kernel radix_fft
     pub fn fft_multiple(
         &mut self,
-        polys: &mut [&mut [G::Scalar]],
-        omega: &G::Scalar,
+        polys: &mut [&mut [G]],
+        omega: &Scalar,
         log_n: u32,
     ) -> GPUResult<()> {
         use rayon::prelude::*;
