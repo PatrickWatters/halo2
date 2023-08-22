@@ -67,8 +67,8 @@ where
     /// * `max_deg` - The precalculated values pq` and `omegas` are valid for radix degrees up to `max_deg`
     fn radix_fft_round(
         &mut self,
-        src_buffer: &opencl::Buffer<Scalar>,
-        dst_buffer: &opencl::Buffer<Scalar>,
+        src_buffer: &opencl::Buffer<G>,
+        dst_buffer: &opencl::Buffer<G>,
         log_n: u32,
         log_p: u32,
         deg: u32,
@@ -91,7 +91,7 @@ where
             .arg(dst_buffer)
             .arg(&self.pq_buffer)
             .arg(&self.omegas_buffer)
-            .arg(opencl::LocalBuffer::<Scalar>::new(1 << deg))
+            .arg(opencl::LocalBuffer::<G>::new(1 << deg))
             .arg(n)
             .arg(log_p)
             .arg(deg)
@@ -132,14 +132,14 @@ where
     /// * `log_n` - Specifies log2 of number of elements
     pub fn radix_fft(
         &mut self,
-        a: &mut [Scalar],
+        a: &mut [G],
         omega: &Scalar,
         log_n: u32,
     ) -> GPUResult<()> {
         println!("{}", log_n.to_string());
         let n = 1 << log_n;
-        let mut src_buffer: opencl::Buffer<Scalar> = self.program.create_buffer::<Scalar>(n)?;
-        let mut dst_buffer: opencl::Buffer<Scalar> = self.program.create_buffer::<Scalar>(n)?;
+        let mut src_buffer: opencl::Buffer<G> = self.program.create_buffer::<G>(n)?;
+        let mut dst_buffer: opencl::Buffer<G> = self.program.create_buffer::<G>(n)?;
 
         let max_deg = cmp::min(MAX_LOG2_RADIX, log_n);
         self.setup_pq_omegas(omega, n, max_deg)?;
@@ -212,7 +212,7 @@ where
     /// fft_multiple call for kernel radix_fft
     pub fn fft_multiple(
         &mut self,
-        polys: &mut [&mut [Scalar]],
+        polys: &mut [&mut [G]],
         omega: &Scalar,
         log_n: u32,
     ) -> GPUResult<()> {

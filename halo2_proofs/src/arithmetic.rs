@@ -208,16 +208,23 @@ where
 
 //pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
 
+//pub fn best_fft_cpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
 
-pub fn best_fft_multiple_gpu<Scalar: Field, G: FftGroup<Scalar>>(
-    kern: &mut Option<gpu::LockedMultiFFTKernel<Scalar,G>>,
-    polys: &mut [&mut [Scalar]],
-    omega: &Scalar,
+/// Wrap `gpu_fft_multiple`
+#[cfg(feature = "gpu")]
+pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(
+    polys: &mut [&mut [G]],
+    omega: Scalar,
     log_n: u32,
 ) -> gpu::GPUResult<()> {
+
+    use crate::gpu::LockedMultiFFTKernel;
+
+    let mut kern: Option<LockedMultiFFTKernel<_,_>> = Some(LockedMultiFFTKernel::<_,_>::new(log_n as usize, false));
+
     if let Some(ref mut kern) = kern {
         if kern
-            .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| gpu_fft_multiple(k, polys, omega, log_n))
+            .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| gpu_fft_multiple(k, polys, &omega, log_n))
             .is_ok()
         {
             println!("use multiple GPUs");
@@ -231,7 +238,7 @@ pub fn best_fft_multiple_gpu<Scalar: Field, G: FftGroup<Scalar>>(
 #[cfg(feature = "gpu")]
 pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
     kern: &mut gpu::MultiFFTKernel<Scalar,G>,
-    polys: &mut [&mut [Scalar]],
+    polys: &mut [&mut [G]],
     omega: &Scalar,
     log_n: u32,
 ) -> gpu::GPUResult<()> {
@@ -241,37 +248,6 @@ pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
 }
 
 
-/// Performs a radix-$2$ Fast-Fourier Transformation (FFT) on a vector of size
-/// $n = 2^k$, when provided `log_n` = $k$ and an element of multiplicative
-/// order $n$ called `omega` ($\omega$). The result is that the vector `a`, when
-/// interpreted as the coefficients of a polynomial of degree $n - 1$, is
-/// transformed into the evaluations of this polynomial at each of the $n$
-/// distinct powers of $\omega$. This transformation is invertible by providing
-/// $\omega^{-1}$ in place of $\omega$ and dividing each resulting field element
-/// by $n$.
-///
-/// This will use multithreading if beneficial.
-///  
-/// 
-#[cfg(feature = "gpu")]
-pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [Scalar], omega: Scalar, log_n: u32) {
-
-    let k = a.len() as usize;
-    assert_eq!(k, 1 << log_n);
-
-    let mut fft_kern: Option<LockedMultiFFTKernel<Scalar,G>> = Some(LockedMultiFFTKernel::<Scalar,G>::new(k as usize, false));
-
-    best_fft_multiple_gpu(
-     &mut fft_kern,
-     &mut [a],
-     &omega,
-     k as u32,
-    ).unwrap();
-
-}
-
-
-
 
 /// Performs a radix-$2$ Fast-Fourier Transformation (FFT) on a vector of size
 /// $n = 2^k$, when provided `log_n` = $k$ and an element of multiplicative
@@ -283,7 +259,7 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [Scalar], omega:
 /// by $n$.
 ///
 /// This will use multithreading if beneficial.
-pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+pub fn best_fft_cpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
     fn bitreverse(mut n: usize, l: usize) -> usize {
         let mut r = 0;
         for _ in 0..l {
@@ -389,6 +365,8 @@ pub fn recursive_butterfly_arithmetic<Scalar: Field, G: FftGroup<Scalar>>(
 
 /// Convert coefficient bases group elements to lagrange basis by inverse FFT.
 pub fn g_to_lagrange<C: CurveAffine>(g_projective: Vec<C::Curve>, k: u32) -> Vec<C> {
+    use crate::gpu::LockedMultiFFTKernel;
+
     let n_inv = C::Scalar::TWO_INV.pow_vartime(&[k as u64, 0, 0, 0]);
     let mut omega_inv = C::Scalar::ROOT_OF_UNITY_INV;
     for _ in k..C::Scalar::S {
@@ -396,7 +374,11 @@ pub fn g_to_lagrange<C: CurveAffine>(g_projective: Vec<C::Curve>, k: u32) -> Vec
     }
 
     let mut g_lagrange_projective = g_projective;
-    best_fft(&mut g_lagrange_projective, omega_inv, k);
+
+    best_fft(&mut [&mut g_lagrange_projective], omega_inv, k).unwrap();
+
+    //best_fft_cpu(&mut g_lagrange_projective, omega_inv, k);
+
     parallelize(&mut g_lagrange_projective, |g, _| {
         for g in g.iter_mut() {
             *g *= n_inv;
