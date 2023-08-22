@@ -212,7 +212,7 @@ where
 
 /// Wrap `gpu_fft_multiple`
 #[cfg(feature = "gpu")]
-pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(
+pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
     polys: &mut [&mut [G]],
     omega: Scalar,
     log_n: u32,
@@ -374,10 +374,13 @@ pub fn g_to_lagrange<C: CurveAffine>(g_projective: Vec<C::Curve>, k: u32) -> Vec
     }
 
     let mut g_lagrange_projective = g_projective;
-
-    best_fft(&mut [&mut g_lagrange_projective], omega_inv, k).unwrap();
-
-    //best_fft_cpu(&mut g_lagrange_projective, omega_inv, k);
+    
+    if cfg!(feature = "gpu")
+    {
+        best_fft_gpu(&mut [&mut g_lagrange_projective], omega_inv, k).unwrap();
+    }else {
+        best_fft_cpu(&mut g_lagrange_projective, omega_inv, k);
+    }
 
     parallelize(&mut g_lagrange_projective, |g, _| {
         for g in g.iter_mut() {

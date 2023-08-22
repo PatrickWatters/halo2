@@ -2,7 +2,7 @@
 //! domain that is of a suitable size for the application.
 
 use crate::{
-    arithmetic::{best_fft,best_fft_cpu, parallelize, FftGroup},
+    arithmetic::{best_fft_cpu, best_fft_gpu, parallelize, FftGroup},
     plonk::Assigned,
 };
 
@@ -251,9 +251,13 @@ impl<F: WithSmallOrderMulGroup<3>> EvaluationDomain<F> {
 
         self.distribute_powers_zeta(&mut a.values, true);
         a.values.resize(self.extended_len(), F::ZERO);
+        if cfg!(feature = "gpu")
+        {
+            best_fft_gpu(&mut [&mut a.values], self.extended_omega, self.extended_k).unwrap();
+        }else {
+            best_fft_cpu(&mut a.values, self.extended_omega, self.extended_k);
+        }
     
-        best_fft(&mut [&mut a.values], self.extended_omega, self.extended_k).unwrap();
-
         Polynomial {
             values: a.values,
             _marker: PhantomData,
@@ -358,8 +362,12 @@ impl<F: WithSmallOrderMulGroup<3>> EvaluationDomain<F> {
     }
 
     fn ifft(a: &mut [F], omega_inv: F, log_n: u32, divisor: F) {
-        best_fft(&mut [a], omega_inv, log_n).unwrap();
-        //best_fft_cpu(a, omega_inv, log_n);
+        if cfg!(feature = "gpu")
+        {
+            best_fft_gpu(&mut [a], omega_inv, log_n).unwrap();
+        }else {
+            best_fft_cpu(a, omega_inv, log_n);
+        }
         parallelize(a, |a, _| {
             for a in a {
                 // Finish iFFT
@@ -577,8 +585,7 @@ fn test_best_fft_multiple_gpu() {
         let start = start_timer!(|| message);
 
         let mut prev_fft_coeffs = coeffs.clone();
-        
-        best_fft(&mut [&mut prev_fft_coeffs],domain.get_omega(),k as u32,).unwrap();
+        best_fft_cpu(&mut prev_fft_coeffs, domain.get_omega(), k);
 
         end_timer!(start);
 
@@ -587,7 +594,7 @@ fn test_best_fft_multiple_gpu() {
 
         let mut optimized_fft_coeffs = coeffs.clone();
 
-       best_fft(
+       best_fft_gpu(
             &mut [&mut optimized_fft_coeffs],
             domain.get_omega(),
            k as u32,
@@ -622,10 +629,13 @@ fn test_fft() {
         let start = start_timer!(|| message);
 
         let mut prev_fft_coeffs = coeffs.clone();
-        best_fft(&mut [&mut prev_fft_coeffs], domain.get_omega(), k).unwrap();
 
-        //best_fft_cpu(&mut prev_fft_coeffs, domain.get_omega(), k);
-
+        if cfg!(feature = "gpu")
+        {
+            best_fft_gpu(&mut [&mut prev_fft_coeffs], domain.get_omega(), k).unwrap();
+        }else {
+            best_fft_cpu(&mut prev_fft_coeffs, domain.get_omega(), k);
+        }
         end_timer!(start);
     }
 }
