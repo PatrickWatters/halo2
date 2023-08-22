@@ -99,7 +99,7 @@ tracing-subscriber = {version = "0.3", default-features = false, features = ["en
 getrandom = { version = "0.2", features = ["js"] }
 
 [features]
-default = ["batch"]
+default = ["batch","cpu"]
 dev-graph = ["plotters", "tabbycat"]
 gadget-traces = ["backtrace"]
 sanity-checks = []
@@ -108,6 +108,7 @@ circuit-params = []
 # set gpu acceleration as optional feature
 gpu = ["rust-gpu-tools", "ff-cl-gen", "fs2", "lazy_static", "crossbeam", "futures/thread-pool"]
 gwc = []
+cpu=[]
 [lib]
 bench = false
 

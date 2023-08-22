@@ -1,5 +1,9 @@
+
+#[cfg(feature = "gpu")]
+use crate::arithmetic::best_fft_gpu;
+
 use crate::arithmetic::{
-    best_fft_cpu, best_fft_gpu, best_multiexp, g_to_lagrange, parallelize, CurveAffine, CurveExt,
+    best_fft_cpu, best_multiexp, g_to_lagrange, parallelize, CurveAffine, CurveExt,
 };
 use crate::helpers::SerdeCurveAffine;
 use crate::poly::commitment::{Blind, CommitmentScheme, Params, ParamsProver, ParamsVerifier, MSM};
@@ -347,7 +351,11 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::arithmetic::{best_fft_cpu, best_fft_gpu, best_multiexp, parallelize, CurveAffine, CurveExt};
+
+    #[cfg(feature = "gpu")]
+    use crate::arithmetic::best_fft_gpu;
+    
+    use crate::arithmetic::{best_fft_cpu, best_multiexp, parallelize, CurveAffine, CurveExt};
     use crate::poly::commitment::ParamsProver;
     use crate::poly::commitment::{Blind, CommitmentScheme, Params, MSM};
     use crate::poly::kzg::commitment::{ParamsKZG, ParamsVerifierKZG};

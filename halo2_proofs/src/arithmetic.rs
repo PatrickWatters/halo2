@@ -365,7 +365,10 @@ pub fn recursive_butterfly_arithmetic<Scalar: Field, G: FftGroup<Scalar>>(
 
 /// Convert coefficient bases group elements to lagrange basis by inverse FFT.
 pub fn g_to_lagrange<C: CurveAffine>(g_projective: Vec<C::Curve>, k: u32) -> Vec<C> {
+    #[cfg(feature = "gpu")]
     use crate::gpu::LockedMultiFFTKernel;
+    #[cfg(feature = "gpu")]
+    use crate::arithmetic::best_fft_gpu;
 
     let n_inv = C::Scalar::TWO_INV.pow_vartime(&[k as u64, 0, 0, 0]);
     let mut omega_inv = C::Scalar::ROOT_OF_UNITY_INV;
@@ -374,13 +377,13 @@ pub fn g_to_lagrange<C: CurveAffine>(g_projective: Vec<C::Curve>, k: u32) -> Vec
     }
 
     let mut g_lagrange_projective = g_projective;
+
+    #[cfg(feature = "gpu")]
+    best_fft_gpu(&mut [&mut g_lagrange_projective], omega_inv, k).unwrap();
+
+    #[cfg(feature = "cpu")]
+     best_fft_cpu(&mut g_lagrange_projective, omega_inv, k);
     
-    if cfg!(feature = "gpu")
-    {
-        best_fft_gpu(&mut [&mut g_lagrange_projective], omega_inv, k).unwrap();
-    }else {
-        best_fft_cpu(&mut g_lagrange_projective, omega_inv, k);
-    }
 
     parallelize(&mut g_lagrange_projective, |g, _| {
         for g in g.iter_mut() {
