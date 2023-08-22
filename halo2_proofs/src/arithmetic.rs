@@ -227,7 +227,7 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
             .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| gpu_fft_multiple(k, polys, &omega, log_n))
             .is_ok()
         {
-            println!("use multiple GPUs");
+            //println!("use multiple GPUs");
             return Ok(());
         }
     }
