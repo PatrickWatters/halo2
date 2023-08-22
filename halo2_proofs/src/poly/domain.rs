@@ -578,7 +578,7 @@ fn test_best_fft_multiple_gpu() {
     use crate::poly::EvaluationDomain;
     use ark_std::{end_timer, start_timer};
     use rand_core::OsRng;
-    
+    use crate::arithmetic::best_fft_cpu;
     for k in 5..7 {
         let rng = OsRng;
         // polynomial degree n = 2^k
