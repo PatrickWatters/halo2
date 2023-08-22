@@ -2,7 +2,7 @@
 //! domain that is of a suitable size for the application.
 
 use crate::{
-    arithmetic::{best_fft, parallelize, FftGroup},
+    arithmetic::{best_fft,best_fft_cpu, parallelize, FftGroup},
     plonk::Assigned,
 };
 
@@ -251,7 +251,8 @@ impl<F: WithSmallOrderMulGroup<3>> EvaluationDomain<F> {
 
         self.distribute_powers_zeta(&mut a.values, true);
         a.values.resize(self.extended_len(), F::ZERO);
-        best_fft(&mut a.values, self.extended_omega, self.extended_k);
+    
+        best_fft(&mut [&mut a.values], self.extended_omega, self.extended_k).unwrap();
 
         Polynomial {
             values: a.values,
@@ -357,7 +358,8 @@ impl<F: WithSmallOrderMulGroup<3>> EvaluationDomain<F> {
     }
 
     fn ifft(a: &mut [F], omega_inv: F, log_n: u32, divisor: F) {
-        best_fft(a, omega_inv, log_n);
+        best_fft(&mut [a], omega_inv, log_n).unwrap();
+        //best_fft_cpu(a, omega_inv, log_n);
         parallelize(a, |a, _| {
             for a in a {
                 // Finish iFFT
@@ -514,17 +516,20 @@ where
 /// Wrap `gpu_fft_multiple`
 #[cfg(feature = "gpu")]
 pub fn best_fft_multiple_gpu<Scalar: Field, G: FftGroup<Scalar>>(
-    kern: &mut Option<gpu::LockedMultiFFTKernel<Scalar,G>>,
-    polys: &mut [&mut [Scalar]],
+    polys: &mut [&mut [G]],
     omega: &Scalar,
     log_n: u32,
 ) -> gpu::GPUResult<()> {
+    use crate::gpu::LockedMultiFFTKernel;
+
+    let mut kern: Option<LockedMultiFFTKernel<_,_>> = Some(LockedMultiFFTKernel::<_,_>::new(log_n as usize, false));
+
     if let Some(ref mut kern) = kern {
         if kern
             .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| gpu_fft_multiple(k, polys, omega, log_n))
             .is_ok()
         {
-            println!("use multiple GPUs");
+            println!("using multiple GPUs");
             return Ok(());
         }
     }
@@ -535,7 +540,7 @@ pub fn best_fft_multiple_gpu<Scalar: Field, G: FftGroup<Scalar>>(
 #[cfg(feature = "gpu")]
 pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
     kern: &mut gpu::MultiFFTKernel<Scalar,G>,
-    polys: &mut [&mut [Scalar]],
+    polys: &mut [&mut [G]],
     omega: &Scalar,
     log_n: u32,
 ) -> gpu::GPUResult<()> {
@@ -543,6 +548,8 @@ pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
 
     Ok(())
 }
+
+
 
 #[cfg(feature = "gpu")]
 #[test_log::test] // Automatically wraps test to initialize logging
@@ -557,7 +564,7 @@ fn test_best_fft_multiple_gpu() {
     use ark_std::{end_timer, start_timer};
     use rand_core::OsRng;
     
-    for k in 4..10 {
+    for k in 5..7 {
         let rng = OsRng;
         // polynomial degree n = 2^k
         let n = 1u64 << k;
@@ -570,7 +577,8 @@ fn test_best_fft_multiple_gpu() {
         let start = start_timer!(|| message);
 
         let mut prev_fft_coeffs = coeffs.clone();
-        best_fft(&mut prev_fft_coeffs, domain.get_omega(), k);
+        
+        best_fft(&mut [&mut prev_fft_coeffs],domain.get_omega(),k as u32,).unwrap();
 
         end_timer!(start);
 
@@ -578,21 +586,20 @@ fn test_best_fft_multiple_gpu() {
         let start = start_timer!(|| message);
 
         let mut optimized_fft_coeffs = coeffs.clone();
-        let mut fft_kern: Option<LockedMultiFFTKernel<_,_>> = Some(LockedMultiFFTKernel::<_,Fr>::new(k as usize, false));
 
-        best_fft_multiple_gpu(
-            &mut fft_kern,
+       best_fft(
             &mut [&mut optimized_fft_coeffs],
-            &domain.get_omega(),
-            k as u32,
-        )
-        .unwrap();
+            domain.get_omega(),
+           k as u32,
+        ).unwrap();
 
         end_timer!(start);
 
         assert_eq!(prev_fft_coeffs, optimized_fft_coeffs);
     }
 }
+
+
 
 #[test]
 fn test_fft() {
@@ -615,7 +622,9 @@ fn test_fft() {
         let start = start_timer!(|| message);
 
         let mut prev_fft_coeffs = coeffs.clone();
-        best_fft(&mut prev_fft_coeffs, domain.get_omega(), k);
+        best_fft(&mut [&mut prev_fft_coeffs], domain.get_omega(), k).unwrap();
+
+        //best_fft_cpu(&mut prev_fft_coeffs, domain.get_omega(), k);
 
         end_timer!(start);
     }
