@@ -588,7 +588,7 @@ fn test_best_fft_multiple_gpu() {
         // evaluation domain
         let domain: EvaluationDomain<Fr> = EvaluationDomain::new(1, k);
 
-        let message = format!("prev_fft degree {}", k);
+        let message: String = format!("prev_fft degree {}", k);
         let start = start_timer!(|| message);
 
         let mut prev_fft_coeffs = coeffs.clone();
