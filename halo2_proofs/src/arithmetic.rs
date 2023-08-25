@@ -18,6 +18,7 @@ use::halo2curves::bn256::G1;
 use log::{info, warn};
 use ark_std::{end_timer, start_timer};
 use ark_std::time::Instant;
+use std::error::Error;
 
 use std::time::Duration;
 
@@ -270,10 +271,10 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
 }
 
 
-fn log_stats(stat_collector:FFTLoggingInfo)
+fn log_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
 {   
     use std::path::Path;
-    let filename = "fft_times.csv";
+    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/fft_times.csv";
     let already_exists= Path::new(filename).exists();
 
     let file = std::fs::OpenOptions::new()
@@ -287,12 +288,13 @@ fn log_stats(stat_collector:FFTLoggingInfo)
     
     if already_exists == false
     {
-        let _ = wtr.write_record(&["size","log_n", "fft_type", "total_duration", "gpu_transfer"]);    
+        wtr.write_record(&["size","log_n", "fft_type", "total_duration", "gpu_transfer"])?;    
     }
-    let _ = wtr.write_record(&[stat_collector.size, stat_collector.logn, stat_collector.fft_type, stat_collector.fft_duration,
-        stat_collector.gpu_transfer,]);
-    let _ = wtr.flush();
-    
+
+    wtr.write_record(&[stat_collector.size, stat_collector.logn, stat_collector.fft_type, stat_collector.fft_duration,
+    stat_collector.gpu_transfer,])?;
+    wtr.flush()?;
+    Ok(())    
 }
 
 
