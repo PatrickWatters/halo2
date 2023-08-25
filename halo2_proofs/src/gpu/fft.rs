@@ -14,6 +14,19 @@ use rust_gpu_tools::*;
 use std::cmp::min;
 use std::ops::MulAssign;
 use std::{cmp, env};
+use ark_std::time::Instant;
+use std::error::Error;
+use std::time::Duration;
+
+#[derive(serde::Serialize)]
+struct FFTLoggingInfo {    
+    
+    size: String,
+    logn: String,
+    src_buffer_write_from: String,
+    fft_rounds: String,
+    src_buffer_read_into: String,
+}
 
 const LOG2_MAX_ELEMENTS: usize = 32; // At most 2^32 elements is supported.
 const MAX_LOG2_RADIX: u32 = 9; // Radix512
@@ -136,6 +149,18 @@ where
         omega: &Scalar,
         log_n: u32,
     ) -> GPUResult<()> {
+        
+        let mut stat_collector = FFTLoggingInfo{
+            size:String::from(""),
+            logn:String::from(""),
+            fft_rounds:String::from(""), 
+            src_buffer_write_from:String::from(""), 
+            src_buffer_read_into:String::from(""), 
+        };
+
+        stat_collector.size = format!("{}",a.len() as u32);
+        stat_collector.size = format!("{}",log_n as u32);
+        
         //println!("{}", log_n.to_string());
         let n = 1 << log_n;
         let mut src_buffer: opencl::Buffer<G> = self.program.create_buffer::<G>(n)?;
@@ -144,7 +169,13 @@ where
         let max_deg = cmp::min(MAX_LOG2_RADIX, log_n);
         self.setup_pq_omegas(omega, n, max_deg)?;
 
+        let timer1 = Instant::now();
         src_buffer.write_from(0, &*a)?;
+        stat_collector.src_buffer_write_from = format!("{:?}",timer1.elapsed());
+
+
+
+        let timer2: Instant = Instant::now();
         let mut log_p = 0u32;
         while log_p < log_n {
             let deg = cmp::min(max_deg, log_n - log_p);
@@ -152,12 +183,44 @@ where
             log_p += deg;
             std::mem::swap(&mut src_buffer, &mut dst_buffer);
         }
+        stat_collector.fft_rounds = format!("{:?}",timer2.elapsed());
 
+
+        let timer3: Instant = Instant::now();
         src_buffer.read_into(0, a)?;
-
+        stat_collector.src_buffer_read_into = format!("{:?}",timer3.elapsed());
+        log_stats(stat_collector);
         Ok(())
     }
 }
+
+
+fn log_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
+{   
+    use std::path::Path;
+    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/fft__breakdown.csv";
+    let already_exists= Path::new(filename).exists();
+
+    let file = std::fs::OpenOptions::new()
+    .write(true)
+    .create(true)
+    .append(true)
+    .open(filename)
+    .unwrap();
+
+    let mut wtr = csv::Writer::from_writer(file);
+    
+    if already_exists == false
+    {
+        wtr.write_record(&["size","log_n", "src_buffer_write_from", "fft_rounds", "src_buffer_read_into"])?;    
+    }
+
+    wtr.write_record(&[stat_collector.size, stat_collector.logn, stat_collector.src_buffer_write_from, stat_collector.fft_rounds,
+    stat_collector.src_buffer_read_into,])?;
+    wtr.flush()?;
+    Ok(())    
+}
+
 
 /// Gpu fft kernel vec
 #[allow(missing_debug_implementations)]
