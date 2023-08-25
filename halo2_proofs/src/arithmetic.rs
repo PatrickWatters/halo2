@@ -17,6 +17,22 @@ use::halo2curves::bn256::G1;
 #[cfg(feature = "gpu")]
 use log::{info, warn};
 use ark_std::{end_timer, start_timer};
+use ark_std::time::Instant;
+
+use std::time::Duration;
+
+
+#[derive(serde::Serialize)]
+struct FFTLoggingInfo {    
+    
+    size: String,
+    logn: String,
+    fft_duration: String,
+    fft_type: String,
+    gpu_transfer:String, 
+}
+
+
 
 
 pub use halo2curves::{CurveAffine, CurveExt};
@@ -219,10 +235,25 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
     log_n: u32,
 ) -> gpu::GPUResult<()> {
 
-    let message: String = format!("gpu_fft degree {}", log_n);
-    let start = start_timer!(|| message);
+    let mut stat_collector = FFTLoggingInfo{
+        size:String::from(""),
+        logn:String::from(""),
+        fft_duration:String::from(""),  
+        fft_type:String::from("gpu"), 
+        gpu_transfer:String::from(""), 
+    };
+
+    stat_collector.size = format!("{}",polys.len() as u32);
+    stat_collector.logn = format!("{}",log_n as u32);
+
+    //let message: String = format!("gpu_fft degree {}", log_n);
+    //let start = start_timer!(|| message);
+    let mut total_fft_time =  Duration::new(0,0);
+    //let mut timer =  Duration::new(0,0);
 
     use crate::gpu::LockedMultiFFTKernel;
+
+    let timer = Instant::now();
 
     let mut kern: Option<LockedMultiFFTKernel<_,_>> = Some(LockedMultiFFTKernel::<_,_>::new(log_n as usize, false));
 
@@ -234,12 +265,41 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
             //println!("use multiple GPUs");
             return Ok(());
         }
-    }
-    let message = format!("HP GPU fft degree {}", log_n);
-    end_timer!(start);
+    } 
+    total_fft_time = timer.elapsed();
+
+    stat_collector.fft_duration = format!("{:?}",total_fft_time);
+    log_stats(stat_collector);
 
     Ok(())
 }
+
+
+fn log_stats(stat_collector:FFTLoggingInfo)
+{   
+    use std::path::Path;
+    let filename = "fft_times.csv";
+    let already_exists= Path::new(filename).exists();
+
+    let file = std::fs::OpenOptions::new()
+    .write(true)
+    .create(true)
+    .append(true)
+    .open(filename)
+    .unwrap();
+
+    let mut wtr = csv::Writer::from_writer(file);
+    
+    if already_exists == false
+    {
+        let _ = wtr.write_record(&["size","log_n", "fft_type", "total_duration", "gpu_transfer"]);    
+    }
+    let _ = wtr.write_record(&[stat_collector.size, stat_collector.logn, stat_collector.fft_type, stat_collector.fft_duration,
+        stat_collector.gpu_transfer,]);
+    let _ = wtr.flush();
+    
+}
+
 
 /// Use multiple gpu fft
 #[cfg(feature = "gpu")]

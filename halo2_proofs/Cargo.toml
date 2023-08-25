@@ -69,7 +69,10 @@ num_cpus = "1"
 env_logger = "0.8.1"
 ark-std = { version = "0.3", features = ["print-trace"] }
 test-log="*"
-
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+instant = {version = "0.1", features = [ "wasm-bindgen" ], optional = true}
+csv = "1.1"
 # gpu feature
 
 pairing = { git = 'https://github.com/starslabhq/pairing', package = "pairing_bn256", branch = "primeFieldChar" }
