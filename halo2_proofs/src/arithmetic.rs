@@ -246,11 +246,6 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
     stat_collector.size = format!("{}",polys.len() as u32);
     stat_collector.logn = format!("{}",log_n as u32);
 
-    //let message: String = format!("gpu_fft degree {}", log_n);
-    //let start = start_timer!(|| message);
-    let mut total_fft_time =  Duration::new(0,0);
-    //let mut timer =  Duration::new(0,0);
-
     use crate::gpu::LockedMultiFFTKernel;
 
     let timer = Instant::now();
@@ -266,7 +261,7 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
             return Ok(());
         }
     } 
-    total_fft_time = timer.elapsed();
+    let total_fft_time = timer.elapsed();
 
     stat_collector.fft_duration = format!("{:?}",total_fft_time);
     log_stats(stat_collector);
@@ -327,6 +322,20 @@ pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
 ///
 /// This will use multithreading if beneficial.
 pub fn best_fft_cpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+    
+    let mut stat_collector = FFTLoggingInfo{
+        size:String::from(""),
+        logn:String::from(""),
+        fft_duration:String::from(""),  
+        fft_type:String::from("gpu"), 
+        gpu_transfer:String::from(""), 
+    };
+
+    stat_collector.size = format!("{}",a.len() as u32);
+    stat_collector.logn = format!("{}",log_n as u32);
+
+    let timer = Instant::now();
+    
     fn bitreverse(mut n: usize, l: usize) -> usize {
         let mut r = 0;
         for _ in 0..l {
@@ -389,6 +398,9 @@ pub fn best_fft_cpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scal
     } else {
         recursive_butterfly_arithmetic(a, n, 1, &twiddles)
     }
+    let total_fft_time = timer.elapsed();
+    stat_collector.fft_duration = format!("{:?}",total_fft_time);
+    log_stats(stat_collector);
 }
 /// This perform recursive butterfly arithmetic
 pub fn recursive_butterfly_arithmetic<Scalar: Field, G: FftGroup<Scalar>>(
