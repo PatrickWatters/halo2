@@ -16,6 +16,7 @@ use crate::gpu::LockedMultiFFTKernel;
 use::halo2curves::bn256::G1;
 #[cfg(feature = "gpu")]
 use log::{info, warn};
+use ark_std::{end_timer, start_timer};
 
 
 pub use halo2curves::{CurveAffine, CurveExt};
@@ -218,6 +219,9 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
     log_n: u32,
 ) -> gpu::GPUResult<()> {
 
+    let message: String = format!("gpu_fft degree {}", log_n);
+    let start = start_timer!(|| message);
+
     use crate::gpu::LockedMultiFFTKernel;
 
     let mut kern: Option<LockedMultiFFTKernel<_,_>> = Some(LockedMultiFFTKernel::<_,_>::new(log_n as usize, false));
@@ -231,6 +235,9 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
             return Ok(());
         }
     }
+    let message = format!("HP GPU fft degree {}", log_n);
+    end_timer!(start);
+
     Ok(())
 }
 
