@@ -258,14 +258,14 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
             .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| gpu_fft_multiple(k, polys, &omega, log_n))
             .is_ok()
         {
+            let total_fft_time = timer.elapsed();
+            stat_collector.fft_duration = format!("{:?}",total_fft_time);
+            log_stats(stat_collector);
+        
             //println!("use multiple GPUs");
             return Ok(());
         }
     } 
-    let total_fft_time = timer.elapsed();
-
-    stat_collector.fft_duration = format!("{:?}",total_fft_time);
-    log_stats(stat_collector);
 
     Ok(())
 }
@@ -403,6 +403,7 @@ pub fn best_fft_cpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scal
     let total_fft_time = timer.elapsed();
     stat_collector.fft_duration = format!("{:?}",total_fft_time);
     log_stats(stat_collector);
+
 }
 /// This perform recursive butterfly arithmetic
 pub fn recursive_butterfly_arithmetic<Scalar: Field, G: FftGroup<Scalar>>(
