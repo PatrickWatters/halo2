@@ -26,6 +26,19 @@ use std::marker::PhantomData;
 #[cfg(feature = "gpu")]
 use crate::gpu;
 use log::{info, warn};
+use std::time::Duration;
+
+
+#[derive(serde::Serialize)]
+struct FFTLoggingInfo {
+    logn: String,
+    fft_duration: String,
+    fft_type: String,
+    gpu_transfer:String, 
+}
+
+
+
 
 /// This structure contains precomputed constants and other details needed for
 /// performing operations on an evaluation domain of size $2^k$ and an extended
