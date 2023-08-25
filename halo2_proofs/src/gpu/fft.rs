@@ -242,8 +242,8 @@ where
     /// New gpu kernel device
     pub fn create(priority: bool) -> GPUResult<MultiFFTKernel<Scalar,G>> {
         let mut all_devices = opencl::Device::all();
-        let all_num = all_devices.len();
-        //let all_num =1;
+        //let all_num = all_devices.len();
+        let all_num =1;
         let (lock_index, gpu_range) = get_lock_name_and_gpu_range(all_num);
 
         let lock = locks::GPULock::lock(lock_index);
