@@ -159,7 +159,7 @@ where
         };
 
         stat_collector.size = format!("{}",a.len() as u32);
-        stat_collector.size = format!("{}",log_n as u32);
+        stat_collector.logn = format!("{}",log_n as u32);
         
         //println!("{}", log_n.to_string());
         let n = 1 << log_n;
