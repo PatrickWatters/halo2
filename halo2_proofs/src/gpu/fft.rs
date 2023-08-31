@@ -171,7 +171,7 @@ where
 
         let timer1 = Instant::now();
         src_buffer.write_from(0, &*a)?;
-        stat_collector.src_buffer_write_from = format!("{:?}",timer1.elapsed());
+        stat_collector.src_buffer_write_from = format!("{:?}",timer1.elapsed().as_millis());
 
 
 
@@ -183,12 +183,12 @@ where
             log_p += deg;
             std::mem::swap(&mut src_buffer, &mut dst_buffer);
         }
-        stat_collector.fft_rounds = format!("{:?}",timer2.elapsed());
+        stat_collector.fft_rounds = format!("{:?}",timer2.elapsed().as_millis());
 
 
         let timer3: Instant = Instant::now();
         src_buffer.read_into(0, a)?;
-        stat_collector.src_buffer_read_into = format!("{:?}",timer3.elapsed());
+        stat_collector.src_buffer_read_into = format!("{:?}",timer3.elapsed().as_micros());
         log_stats(stat_collector);
         Ok(())
     }

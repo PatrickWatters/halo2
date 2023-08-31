@@ -30,7 +30,6 @@ struct FFTLoggingInfo {
     logn: String,
     fft_duration: String,
     fft_type: String,
-    gpu_transfer:String, 
 }
 
 
@@ -241,7 +240,6 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
         logn:String::from(""),
         fft_duration:String::from(""),  
         fft_type:String::from("gpu"), 
-        gpu_transfer:String::from(""), 
     };
 
     stat_collector.size = format!("{}",polys.len() as u32);
@@ -258,7 +256,7 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
             .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| gpu_fft_multiple(k, polys, &omega, log_n))
             .is_ok()
         {
-            let total_fft_time = timer.elapsed();
+            let total_fft_time = timer.elapsed().as_millis();
             stat_collector.fft_duration = format!("{:?}",total_fft_time);
             log_stats(stat_collector);
         
@@ -288,11 +286,10 @@ fn log_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
     
     if already_exists == false
     {
-        wtr.write_record(&["size","log_n", "fft_type", "total_duration", "gpu_transfer"])?;    
+        wtr.write_record(&["size","log_n", "fft_type", "total_duration (ms)"])?;    
     }
 
-    wtr.write_record(&[stat_collector.size, stat_collector.logn, stat_collector.fft_type, stat_collector.fft_duration,
-    stat_collector.gpu_transfer,])?;
+    wtr.write_record(&[stat_collector.size, stat_collector.logn, stat_collector.fft_type, stat_collector.fft_duration,])?;
     wtr.flush()?;
     Ok(())    
 }
@@ -330,7 +327,6 @@ pub fn best_fft_cpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scal
         logn:String::from(""),
         fft_duration:String::from(""),  
         fft_type:String::from("cpu"), 
-        gpu_transfer:String::from(""), 
     };
 
     stat_collector.size = format!("{}",a.len() as u32);
