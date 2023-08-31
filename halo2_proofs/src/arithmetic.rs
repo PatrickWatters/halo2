@@ -271,7 +271,7 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
 fn log_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
 {   
     use std::path::Path;
-    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/fft_times.csv";
+    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/fft_times.csv";
     let already_exists= Path::new(filename).exists();
 
     let file = std::fs::OpenOptions::new()
