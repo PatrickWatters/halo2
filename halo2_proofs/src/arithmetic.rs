@@ -329,7 +329,7 @@ pub fn best_fft_cpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scal
         size:String::from(""),
         logn:String::from(""),
         fft_duration:String::from(""),  
-        fft_type:String::from("gpu"), 
+        fft_type:String::from("cpu"), 
         gpu_transfer:String::from(""), 
     };
 
