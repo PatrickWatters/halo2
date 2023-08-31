@@ -189,7 +189,7 @@ where
         let timer3: Instant = Instant::now();
         src_buffer.read_into(0, a)?;
         stat_collector.src_buffer_read_into = format!("{:?}",timer3.elapsed().as_micros());
-        log_stats(stat_collector);
+        let _ = log_stats(stat_collector);
         Ok(())
     }
 }
@@ -242,9 +242,9 @@ where
     /// New gpu kernel device
     pub fn create(priority: bool) -> GPUResult<MultiFFTKernel<Scalar,G>> {
         let mut all_devices = opencl::Device::all();
-        //let all_num = all_devices.len();
-        let all_num =1;
-        let (lock_index, gpu_range) = get_lock_name_and_gpu_range(all_num);
+        let num_devices = all_devices.len();
+        //let all_num =1;
+        let (lock_index, gpu_range) = get_lock_name_and_gpu_range(num_devices);
 
         let lock = locks::GPULock::lock(lock_index);
 
@@ -268,7 +268,7 @@ where
 
         Ok(MultiFFTKernel {
             kernels,
-            _lock: lock,
+            _lock: lock
         })
     }
 
