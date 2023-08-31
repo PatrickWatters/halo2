@@ -258,8 +258,8 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
         {
             let total_fft_time = timer.elapsed().as_millis();
             stat_collector.fft_duration = format!("{:?}",total_fft_time);
-            log_stats(stat_collector);
-        
+            let _ = log_stats(stat_collector);
+               
             //println!("use multiple GPUs");
             return Ok(());
         }
