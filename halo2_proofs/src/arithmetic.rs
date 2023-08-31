@@ -22,15 +22,14 @@ use std::error::Error;
 
 use std::time::Duration;
 
-
 #[derive(serde::Serialize)]
-struct FFTLoggingInfo {    
-    
+struct FFTLoggingInfo {     
     size: String,
     logn: String,
     fft_duration: String,
     fft_type: String,
 }
+
 
 
 
