@@ -183,7 +183,7 @@ where
             log_p += deg;
             std::mem::swap(&mut src_buffer, &mut dst_buffer);
         }
-        stat_collector.fft_rounds = format!("{:?}",timer2.elapsed().as_millis());
+        stat_collector.fft_rounds = format!("{:?}",timer2.elapsed());
 
 
         let timer3: Instant = Instant::now();
