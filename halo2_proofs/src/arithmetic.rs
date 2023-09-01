@@ -398,7 +398,7 @@ pub fn best_fft_cpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scal
         recursive_butterfly_arithmetic(a, n, 1, &twiddles)
     }
     let total_fft_time = timer.elapsed();
-    stat_collector.fft_duration = format!("{:?}",total_fft_time);
+    stat_collector.fft_duration = format!("{:?}",total_fft_time.as_millis());
     log_stats(stat_collector);
 
 }
