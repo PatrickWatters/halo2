@@ -241,7 +241,8 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
         fft_type:String::from("gpu"), 
     };
 
-    stat_collector.size = format!("{}",polys.len() as u32);
+    let d = 1 << log_n;
+    stat_collector.size = format!("{}",d);
     stat_collector.logn = format!("{}",log_n as u32);
 
     use crate::gpu::LockedMultiFFTKernel;

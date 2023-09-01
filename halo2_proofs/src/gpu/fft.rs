@@ -188,7 +188,7 @@ where
 
         let timer3: Instant = Instant::now();
         src_buffer.read_into(0, a)?;
-        stat_collector.src_buffer_read_into = format!("{:?}",timer3.elapsed().as_micros());
+        stat_collector.src_buffer_read_into = format!("{:?}",timer3.elapsed().as_millis());
         let _ = log_stats(stat_collector);
         Ok(())
     }
