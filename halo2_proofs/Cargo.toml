@@ -103,7 +103,7 @@ tracing-subscriber = {version = "0.3", default-features = false, features = ["en
 getrandom = { version = "0.2", features = ["js"] }
 
 [features]
-default = ["batch","gpu","cpu"]
+default = ["batch","gpu"]
 dev-graph = ["plotters", "tabbycat"]
 gadget-traces = ["backtrace"]
 sanity-checks = []
