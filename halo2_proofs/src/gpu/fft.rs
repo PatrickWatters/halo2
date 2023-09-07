@@ -294,8 +294,8 @@ where
     }
 
 
+  
     /// fft_multiple call for kernel radix_fft
-    
     pub fn fft_multiple(
         &mut self,
         polys: &mut [&mut [G]],
@@ -307,8 +307,8 @@ where
         let mut now: Instant = Instant::now();
         for poly in polys.chunks_mut(self.kernels.len()) {
             crate::worker::THREAD_POOL.install(|| {
-                poly.iter_mut()
-                    .zip(self.kernels.iter_mut())
+                poly.par_iter_mut()
+                    .zip(self.kernels.par_iter_mut())
                     .for_each(|(p, kern)| kern.radix_fft(p, omega, log_n).unwrap())
             });
         }
@@ -317,6 +317,5 @@ where
 
         Ok(())
     }
-
 
 }
