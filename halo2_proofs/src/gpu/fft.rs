@@ -19,13 +19,14 @@ use std::error::Error;
 use std::time::Duration;
 
 #[derive(serde::Serialize)]
-struct FFTLoggingInfo {    
-    
+struct FFTLoggingInfo {
+    toaltime: String,
     size: String,
     logn: String,
-    src_buffer_write_from: String,
+    write_from_buffer: String,
     fft_rounds: String,
-    src_buffer_read_into: String,
+    read_into_buffer: String,
+    precalculate: String,
 }
 
 const LOG2_MAX_ELEMENTS: usize = 32; // At most 2^32 elements is supported.
@@ -149,13 +150,17 @@ where
         omega: &Scalar,
         log_n: u32,
     ) -> GPUResult<()> {
-        
+        let mut dur = Instant::now();
+
         let mut stat_collector = FFTLoggingInfo{
+            toaltime:String::from(""),
             size:String::from(""),
             logn:String::from(""),
             fft_rounds:String::from(""), 
-            src_buffer_write_from:String::from(""), 
-            src_buffer_read_into:String::from(""), 
+            write_from_buffer:String::from(""), 
+            read_into_buffer:String::from(""), 
+            precalculate:String::from(""), 
+
         };
 
         stat_collector.size = format!("{}",a.len() as u32);
@@ -167,15 +172,20 @@ where
         let mut dst_buffer: opencl::Buffer<G> = self.program.create_buffer::<G>(n)?;
 
         let max_deg = cmp::min(MAX_LOG2_RADIX, log_n);
+
+        let mut now: Instant = Instant::now();
         self.setup_pq_omegas(omega, n, max_deg)?;
+        let precalculate_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("precalculate took {}ms.", precalculate_dur);
+        stat_collector.precalculate = format!("{:?}",precalculate_dur);
 
-        let timer1 = Instant::now();
+        now = Instant::now();
         src_buffer.write_from(0, &*a)?;
-        stat_collector.src_buffer_write_from = format!("{:?}",timer1.elapsed().as_millis());
+        let write_from_buffer_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("write_from_buffer took {}ms.", write_from_buffer_dur);
+        stat_collector.write_from_buffer = format!("{:?}ms",write_from_buffer_dur);
 
-
-
-        let timer2: Instant = Instant::now();
+        now = Instant::now();
         let mut log_p = 0u32;
         while log_p < log_n {
             let deg = cmp::min(max_deg, log_n - log_p);
@@ -183,12 +193,20 @@ where
             log_p += deg;
             std::mem::swap(&mut src_buffer, &mut dst_buffer);
         }
-        stat_collector.fft_rounds = format!("{:?}",timer2.elapsed());
+        let fft_rounds_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("fft_rounds took {}ms.", fft_rounds_dur);
+        stat_collector.fft_rounds = format!("{:?}ms",fft_rounds_dur);
 
-
-        let timer3: Instant = Instant::now();
+        now = Instant::now();
         src_buffer.read_into(0, a)?;
-        stat_collector.src_buffer_read_into = format!("{:?}",timer3.elapsed().as_millis());
+        let read_into_buffer_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("read_into_buffer took {}ms.", read_into_buffer_dur);
+        stat_collector.read_into_buffer = format!("{:?}ms",read_into_buffer_dur);
+      
+        let gpu_dur = dur.elapsed().as_secs() * 1000 + dur.elapsed().subsec_millis() as u64;
+        println!("radix_fft took {}ms.", gpu_dur);
+        stat_collector.toaltime = format!("{:?}ms",gpu_dur);
+      
         let _ = log_stats(stat_collector);
         Ok(())
     }
@@ -215,11 +233,11 @@ fn log_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
     
     if already_exists == false
     {
-        wtr.write_record(&["size","log_n", "src_buffer_write_from", "fft_rounds", "src_buffer_read_into"])?;    
+        wtr.write_record(&["size","log_n", "total_time","precalculate", "read_into_buffer", "fft_rounds", "write_from_buffer"])?;    
     }
 
-    wtr.write_record(&[stat_collector.size, stat_collector.logn, stat_collector.src_buffer_write_from, stat_collector.fft_rounds,
-    stat_collector.src_buffer_read_into,])?;
+    wtr.write_record(&[stat_collector.size, stat_collector.logn, stat_collector.toaltime, stat_collector.read_into_buffer, stat_collector.fft_rounds,
+    stat_collector.write_from_buffer,])?;
     wtr.flush()?;
     Ok(())    
 }
