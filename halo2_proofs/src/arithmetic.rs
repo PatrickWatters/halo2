@@ -258,7 +258,7 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
     
     if let Some(ref mut kern) = kern {
         if kern
-            .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| gpu_fft_multiple(k, polys, &omega, log_n))
+            .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| k.fft_multiple(polys, &omega, log_n))
             .is_ok()
         {
             //let gpu_fft_multiple_total = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
@@ -306,6 +306,7 @@ fn log_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
 
 
 /// Use multiple gpu fft
+/* 
 #[cfg(feature = "gpu")]
 pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
     kern: &mut gpu::MultiFFTKernel<Scalar,G>,
@@ -317,7 +318,7 @@ pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
 
     Ok(())
 }
-
+*/
 
 
 /// Performs a radix-$2$ Fast-Fourier Transformation (FFT) on a vector of size
