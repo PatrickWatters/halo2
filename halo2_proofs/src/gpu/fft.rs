@@ -216,7 +216,7 @@ where
 fn log_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
 {   
     use std::path::Path;
-    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/gpu_fft_breakdown.csv";
+    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/gpu_ffts.csv";
     //let filename = "../halo2/stats/gpu_fft_breakdown.csv";
     //let filename = "gpu_fft_breakdownt.csv";
 
