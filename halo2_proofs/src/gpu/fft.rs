@@ -236,8 +236,8 @@ fn log_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
         wtr.write_record(&["size","log_n", "total_time","precalculate", "read_into_buffer", "fft_rounds", "write_from_buffer"])?;    
     }
 
-    wtr.write_record(&[stat_collector.size, stat_collector.logn, stat_collector.toaltime, stat_collector.read_into_buffer, stat_collector.fft_rounds,
-    stat_collector.write_from_buffer,])?;
+    wtr.write_record(&[stat_collector.size, stat_collector.logn, stat_collector.toaltime, stat_collector.precalculate, 
+        stat_collector.read_into_buffer, stat_collector.fft_rounds, stat_collector.write_from_buffer])?;
     wtr.flush()?;
     Ok(())    
 }
