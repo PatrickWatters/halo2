@@ -261,9 +261,9 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
             .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| gpu_fft_multiple(k, polys, &omega, log_n))
             .is_ok()
         {
-            let gpu_fft_multiple_total = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+            //let gpu_fft_multiple_total = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
             //end_timer!(start);
-            println!("gpu_fft_multiple_total took {}ms.", gpu_fft_multiple_total);
+            //println!("gpu_fft_multiple_total took {}ms.", gpu_fft_multiple_total);
             //stat_collector.fft_duration = format!("{:?}",total_fft_time);
             //let _ = log_stats(stat_collector);
                
