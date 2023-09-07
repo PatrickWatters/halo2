@@ -216,9 +216,9 @@ where
 fn log_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
 {   
     use std::path::Path;
-    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/gpu_ffts.csv";
+    //let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/gpu_fft_breakdown.csv";
     //let filename = "../halo2/stats/gpu_fft_breakdown.csv";
-    //let filename = "gpu_fft_breakdownt.csv";
+    let filename = "gpu_fft_breakdownt.csv";
 
     let already_exists= Path::new(filename).exists();
 
@@ -236,9 +236,8 @@ fn log_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
         wtr.write_record(&["size","log_n", "total_time","precalculate", "read_into_buffer", "fft_rounds", "write_from_buffer"])?;    
     }
 
-    wtr.write_record(&[stat_collector.size, stat_collector.logn, stat_collector.toaltime, stat_collector.precalculate, 
-        stat_collector.read_into_buffer,
-    stat_collector.fft_rounds, stat_collector.write_from_buffer])?;
+    wtr.write_record(&[stat_collector.size, stat_collector.logn, stat_collector.toaltime, stat_collector.read_into_buffer, stat_collector.fft_rounds,
+    stat_collector.write_from_buffer,])?;
     wtr.flush()?;
     Ok(())    
 }
@@ -295,13 +294,15 @@ where
     }
 
 
-    /// fft_multiple call for kernel radix_ff
+    /// fft_multiple call for kernel radix_fft
+    
     pub fn fft_multiple(
         &mut self,
         polys: &mut [&mut [G]],
         omega: &Scalar,
         log_n: u32,
     ) -> GPUResult<()> {
+
         use rayon::prelude::*;
         let mut now: Instant = Instant::now();
         for poly in polys.chunks_mut(self.kernels.len()) {
@@ -316,5 +317,6 @@ where
 
         Ok(())
     }
+
 
 }
