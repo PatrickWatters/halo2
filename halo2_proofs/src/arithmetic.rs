@@ -3,6 +3,7 @@
 
 use super::multicore;
 pub use ff::Field;
+
 use group::{
     ff::{BatchInvert, PrimeField},
     Curve, Group, GroupOpsOwned, ScalarMulOwned,
@@ -234,44 +235,24 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
     log_n: u32,
 ) -> gpu::GPUResult<()> {
 
-    //let mut stat_collector = FFTLoggingInfo{
-    //    size:String::from(""),
-    //    logn:String::from(""),
-     //   fft_duration:String::from(""),  
-      //  fft_type:String::from("gpu"), 
-    //};
-
     let d = 1 << log_n;
-    //stat_collector.size = format!("{}",d);
-    //stat_collector.logn = format!("{}",log_n as u32);
-
-    use crate::gpu::LockedMultiFFTKernel;
 
     let mut now = Instant::now();
-
     let mut kern: Option<LockedMultiFFTKernel<_,_>> = Some(LockedMultiFFTKernel::<_,_>::new(log_n as usize, false));
     let create_kern_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
-    //end_timer!(start);
     println!("create_kern took {}ms.", create_kern_dur);
     
-    now = Instant::now();
-    
+    now = Instant::now();  
     if let Some(ref mut kern) = kern {
         if kern
             .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| k.fft_multiple(polys, &omega, log_n))
             .is_ok()
         {
             let gpu_fft_multiple_total = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
-            //end_timer!(start);
             println!("gpu_fft_multiple_total took {}ms.", gpu_fft_multiple_total);
-            //stat_collector.fft_duration = format!("{:?}",total_fft_time);
-            //let _ = log_stats(stat_collector);
-               
-            //println!("use multiple GPUs");
             return Ok(());
         }
     } 
-
     Ok(())
 }
 

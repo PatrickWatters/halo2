@@ -293,41 +293,20 @@ where
         })
     }
 
-    /// fft_multiple call for kernel radix_fft
-    /*
-    pub fn fft_multiple(
-        &mut self,
-        polys: &mut [&mut [G]],
-        omega: &Scalar,
-        log_n: u32,
-    ) -> GPUResult<()> {
-        use rayon::prelude::*;
-        let mut now: Instant = Instant::now();
-        for poly in polys.chunks_mut(self.kernels.len()) {
-            crate::worker::THREAD_POOL.install(|| {
-                poly.par_iter_mut()
-                    .zip(self.kernels.par_iter_mut())
-                    .for_each(|(p, kern)| kern.radix_fft(p, omega, log_n).unwrap())
-            });
-        }
-        let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
-        println!("fft_multiple took {}ms.", gpu_dur);
 
-        Ok(())
-    } */
+    /// fft_multiple call for kernel radix_ff
     pub fn fft_multiple(
         &mut self,
         polys: &mut [&mut [G]],
         omega: &Scalar,
         log_n: u32,
     ) -> GPUResult<()> {
-        
         use rayon::prelude::*;
         let mut now: Instant = Instant::now();
         for poly in polys.chunks_mut(self.kernels.len()) {
             crate::worker::THREAD_POOL.install(|| {
-                poly.par_iter_mut()
-                    .zip(self.kernels.par_iter_mut())
+                poly.iter_mut()
+                    .zip(self.kernels.iter_mut())
                     .for_each(|(p, kern)| kern.radix_fft(p, omega, log_n).unwrap())
             });
         }
