@@ -601,19 +601,21 @@ fn test_best_fft_multiple_gpu() {
         // evaluation domain
         let domain: EvaluationDomain<Fr> = EvaluationDomain::new(1, k);
 
-        //let message: String = format!("prev_fft degree {}", k);
-        //let start = start_timer!(|| message);
+        println!("Testing FFT for {} elements, degree {}...", n, k);
 
-        //let mut prev_fft_coeffs = coeffs.clone();
-        //best_fft_cpu(&mut prev_fft_coeffs, domain.get_omega(), k);
+        let mut prev_fft_coeffs = coeffs.clone();
+
+        let mut now = std::time::Instant::now();
+        
+        best_fft_cpu(&mut prev_fft_coeffs, domain.get_omega(), k);
+        let cpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("CPU took {}ms.", cpu_dur);
 
         //end_timer!(start);
-        println!("Testing FFT for {} elements, degree {}...", n, k);
         let mut optimized_fft_coeffs = coeffs.clone();
-        
-        let mut now = std::time::Instant::now();
+        now = std::time::Instant::now();
 
-       best_fft_gpu(
+        best_fft_gpu(
             &mut [&mut optimized_fft_coeffs],
             domain.get_omega(),
            k as u32,
@@ -621,7 +623,7 @@ fn test_best_fft_multiple_gpu() {
         let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
         //end_timer!(start);
         println!("GPU took {}ms.", gpu_dur);
-        //assert_eq!(prev_fft_coeffs, optimized_fft_coeffs);
+        assert_eq!(prev_fft_coeffs, optimized_fft_coeffs);
     }
 }
 
