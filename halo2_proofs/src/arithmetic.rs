@@ -32,9 +32,6 @@ struct FFTLoggingInfo {
 }
 
 
-
-
-
 pub use halo2curves::{CurveAffine, CurveExt};
 
 /// This represents an element of a group with basic operations that can be
