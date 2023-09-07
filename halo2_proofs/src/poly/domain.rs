@@ -592,7 +592,7 @@ fn test_best_fft_multiple_gpu() {
     use ark_std::{end_timer, start_timer};
     use rand_core::OsRng;
     use crate::arithmetic::best_fft_cpu;
-    for k in 20..=21 {
+    for k in 21..=21 {
         let rng = OsRng;
         // polynomial degree n = 2^k
         let n = 1u64 << k;
@@ -608,20 +608,19 @@ fn test_best_fft_multiple_gpu() {
         //best_fft_cpu(&mut prev_fft_coeffs, domain.get_omega(), k);
 
         //end_timer!(start);
-
-        let message = format!("gpu_fft degree {}", k);
-        let start = start_timer!(|| message);
-
+        println!("Testing FFT for {} elements, degree {}...", n, k);
         let mut optimized_fft_coeffs = coeffs.clone();
+        
+        let mut now = std::time::Instant::now();
 
        best_fft_gpu(
             &mut [&mut optimized_fft_coeffs],
             domain.get_omega(),
            k as u32,
         ).unwrap();
-
-        end_timer!(start);
-
+        let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        //end_timer!(start);
+        println!("GPU took {}ms.", gpu_dur);
         //assert_eq!(prev_fft_coeffs, optimized_fft_coeffs);
     }
 }
