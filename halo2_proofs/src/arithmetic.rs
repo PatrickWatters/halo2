@@ -220,12 +220,6 @@ where
     }
 }
 
-/// Wrap `gpu_fft_multiple`
-#[cfg(feature = "gpu")]
-
-//pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
-
-//pub fn best_fft_cpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
 
 /// Wrap `gpu_fft_multiple`
 #[cfg(feature = "gpu")]

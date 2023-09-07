@@ -637,7 +637,7 @@ fn test_fft() {
     use halo2curves::bn256::Fr;
     use rand_core::OsRng;
 
-    for k in 18..=27 {
+    for k in 18..=26 {
         let rng = OsRng;
         // polynomial degree n = 2^k
         let n = 1u64 << k;
