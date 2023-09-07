@@ -220,6 +220,12 @@ where
     }
 }
 
+/// Wrap `gpu_fft_multiple`
+#[cfg(feature = "gpu")]
+
+//pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+
+//pub fn best_fft_cpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
 
 /// Wrap `gpu_fft_multiple`
 #[cfg(feature = "gpu")]
@@ -254,7 +260,7 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
 fn log_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
 {   
     use std::path::Path;
-    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/cpu_ffts.csv";
+    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/cpu_fft_times.csv";
     //et filename = "../halo2/stats/fft_times.csv";
     //let filename = "fft_timest.csv";
 
