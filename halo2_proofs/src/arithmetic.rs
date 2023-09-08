@@ -287,9 +287,9 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
 fn log_msm_stats(stat_collector:MSMLoggingInfo)-> Result<(), Box<dyn Error>>
 {   
     use std::path::Path;
-    //let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/cpu_fft_times.csv";
+    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/cpu_msm_times.csv";
     //let filename = "../halo2/stats/cpu_msm_times.csv";
-    let filename = "msm_timest.csv";
+    //let filename = "msm_timest.csv";
 
     let already_exists= Path::new(filename).exists();
 
@@ -315,9 +315,9 @@ fn log_msm_stats(stat_collector:MSMLoggingInfo)-> Result<(), Box<dyn Error>>
 fn log_fft_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
 {   
     use std::path::Path;
-    //let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/cpu_fft_times.csv";
+    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/cpu_fft_times.csv";
     //let filename = "../halo2/stats/cpu_fft_times.csv";
-    let filename = "cpu_fft_times.csv";
+    //let filename = "cpu_fft_times.csv";
 
     let already_exists= Path::new(filename).exists();
 
