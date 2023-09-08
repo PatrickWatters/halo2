@@ -264,7 +264,7 @@ where
     pub fn create(priority: bool) -> GPUResult<MultiFFTKernel<Scalar,G>> {
         let mut all_devices = opencl::Device::all();
         //let num_devices = all_devices.len();
-        let num_devices=2;
+        let num_devices=3;
         let (lock_index, gpu_range) = get_lock_name_and_gpu_range(num_devices);
 
         let lock = locks::GPULock::lock(lock_index);
