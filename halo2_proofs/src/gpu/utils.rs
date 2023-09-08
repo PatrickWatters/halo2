@@ -15,7 +15,7 @@ lazy_static::lazy_static! {
             ("Quadro RTX 6000".to_string(), 4608),
             ("Quadro RTX A6000".to_string(), 10752),
             ("Quadro RTX A6000".to_string(), 10752),
-            ("A10G".to_string(), 3584),
+            ("NVIDIA A10G".to_string(), 3584),
             //NVIDIA A10G
 
 
