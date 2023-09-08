@@ -14,12 +14,18 @@ lazy_static::lazy_static! {
             // NVIDIA
             ("Quadro RTX 6000".to_string(), 4608),
             ("Quadro RTX A6000".to_string(), 10752),
+            ("Quadro RTX A6000".to_string(), 10752),
+
+
+
 
             ("TITAN RTX".to_string(), 4608),
 
             ("Tesla V100".to_string(), 5120),
             ("Tesla P100".to_string(), 3584),
             ("Tesla T4".to_string(), 2560),
+            ("A10G".to_string(), 2048),
+
             ("Quadro M5000".to_string(), 2048),
 
             ("GeForce RTX 3090".to_string(), 10496),
@@ -38,6 +44,8 @@ lazy_static::lazy_static! {
             ("GeForce GTX 1060".to_string(), 1280),
             ("GeForce GTX 1650 SUPER".to_string(), 1280),
             ("GeForce GTX 1650".to_string(), 896),
+
+
         ].into_iter().collect();
 
         match env::var("BELLMAN_CUSTOM_GPU").and_then(|var| {
@@ -59,7 +67,7 @@ lazy_static::lazy_static! {
 const DEFAULT_CORE_COUNT: usize = 2560;
 /// Get core number
 pub fn get_core_count(d: &opencl::Device) -> usize {
-    let name = d.name();
+    let name: String = d.name();
     match CORE_COUNTS.get(&name[..]) {
         Some(&cores) => cores,
         None => {
