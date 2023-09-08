@@ -24,8 +24,6 @@ lazy_static::lazy_static! {
             ("Tesla V100".to_string(), 5120),
             ("Tesla P100".to_string(), 3584),
             ("Tesla T4".to_string(), 2560),
-            ("A10G".to_string(), 2048),
-
             ("Quadro M5000".to_string(), 2048),
 
             ("GeForce RTX 3090".to_string(), 10496),
