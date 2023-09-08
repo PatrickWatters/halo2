@@ -30,7 +30,10 @@ struct FFTLoggingInfo {
     fft_duration: String,
     fft_type: String,
 }
-
+struct MSMLoggingInfo {     
+    num_coeffs: String,
+    msm_duration: String,
+}
 
 pub use halo2curves::{CurveAffine, CurveExt};
 
@@ -169,10 +172,21 @@ pub fn small_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::C
 ///
 /// This will use multithreading if beneficial.
 pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
+    
+    let mut stat_collector = MSMLoggingInfo{
+        num_coeffs:String::from(""),
+        msm_duration:String::from(""),
+    };
+
+    stat_collector.num_coeffs = format!("{}",coeffs.len() as u32);
+    
+
     assert_eq!(coeffs.len(), bases.len());
 
     let num_threads = multicore::current_num_threads();
     if coeffs.len() > num_threads {
+        let timer: Instant = Instant::now();
+
         let chunk = coeffs.len() / num_threads;
         let num_chunks = coeffs.chunks(chunk).len();
         let mut results = vec![C::Curve::identity(); num_chunks];
@@ -189,12 +203,29 @@ pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Cu
                 });
             }
         });
+
+        let total_msm_time = timer.elapsed();
+        stat_collector.msm_duration = format!("{:?}",total_msm_time.as_millis());
+        let _ = log_msm_stats(stat_collector);
+
         results.iter().fold(C::Curve::identity(), |a, b| a + b)
     } else {
+
+        let timer: Instant = Instant::now();
+
         let mut acc = C::Curve::identity();
         multiexp_serial(coeffs, bases, &mut acc);
+
+        let total_msm_time = timer.elapsed();
+        stat_collector.msm_duration = format!("{:?}",total_msm_time.as_millis());
+        let _ = log_msm_stats(stat_collector);
+
         acc
     }
+
+    
+
+
 }
 
 /// Config gpu fft kernel
@@ -253,12 +284,39 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
     Ok(())
 }
 
-
-fn log_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
+fn log_msm_stats(stat_collector:MSMLoggingInfo)-> Result<(), Box<dyn Error>>
 {   
     use std::path::Path;
-    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/cpu_fft_times.csv";
-    //et filename = "../halo2/stats/fft_times.csv";
+    //let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/cpu_fft_times.csv";
+    let filename = "../halo2/stats/cpu_msm_times.csv";
+    //let filename = "fft_timest.csv";
+
+    let already_exists= Path::new(filename).exists();
+
+    let file = std::fs::OpenOptions::new()
+    .write(true)
+    .create(true)
+    .append(true)
+    .open(filename)
+    .unwrap();
+
+    let mut wtr = csv::Writer::from_writer(file);
+    
+    if already_exists == false
+    {
+        wtr.write_record(&["num_coeffs","msm_duration"])?;    
+    }
+
+    wtr.write_record(&[stat_collector.num_coeffs, stat_collector.msm_duration,])?;
+    wtr.flush()?;
+    Ok(())    
+}
+
+fn log_fft_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
+{   
+    use std::path::Path;
+    //let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/cpu_fft_times.csv";
+    let filename = "../halo2/stats/cpu_fft_times.csv";
     //let filename = "fft_timest.csv";
 
     let already_exists= Path::new(filename).exists();
@@ -387,7 +445,7 @@ pub fn best_fft_cpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scal
     }
     let total_fft_time = timer.elapsed();
     stat_collector.fft_duration = format!("{:?}",total_fft_time.as_millis());
-    let _ = log_stats(stat_collector);
+    let _ = log_fft_stats(stat_collector);
 
 }
 /// This perform recursive butterfly arithmetic
