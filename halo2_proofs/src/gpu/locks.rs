@@ -121,6 +121,8 @@ use std::env;
 use std::ops::Range;
 
 macro_rules! locked_kernel {
+
+
     ($class:ident, $kern:ident, $func:ident, $name:expr) => {
         /// gpu fft locked kernel
         #[allow(missing_debug_implementations)]
@@ -151,10 +153,12 @@ macro_rules! locked_kernel {
 
             fn init(&mut self) {
                 if self.kernel.is_none() {
+                    let mut now = std::time::Instant::now();
                     PriorityLock::wait(self.priority);
                     info!("GPU is available for {}!", $name);
                     println!("GPU is available for {}!", $name);
-
+                    let duration = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+                    println!("initialzing kernel took {}ms.", duration);
                     self.kernel = $func::<Scalar,G>(self.log_d, self.priority);
                 }
             }
