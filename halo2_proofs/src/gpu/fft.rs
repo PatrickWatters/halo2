@@ -269,10 +269,14 @@ where
         //let num_devices = all_devices.len();
         let num_devices=4;
         let (lock_index, gpu_range) = get_lock_name_and_gpu_range(num_devices);
+        
+        println!("get_lock_name_and_gpu_range took {}ms.", now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64);
 
         let lock = locks::GPULock::lock(lock_index);
 
         let devices: Vec<&opencl::Device> = all_devices.drain(gpu_range).collect();
+       
+        println!("all_devices.drain took {}ms.", now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64);
 
         // use all of the  GPUs
         let kernels: Vec<_> = devices
