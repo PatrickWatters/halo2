@@ -153,6 +153,8 @@ macro_rules! locked_kernel {
                 if self.kernel.is_none() {
                     PriorityLock::wait(self.priority);
                     info!("GPU is available for {}!", $name);
+                    println!("GPU is available for {}!", $name);
+
                     self.kernel = $func::<Scalar,G>(self.log_d, self.priority);
                 }
             }
@@ -163,6 +165,8 @@ macro_rules! locked_kernel {
                         "GPU acquired by a high priority process! Freeing up {} kernels...",
                         $name
                     );
+                    println!("GPU acquired by a high priority process! Freeing up {} kernels...", $name);
+
                 }
             }
 
@@ -188,6 +192,8 @@ macro_rules! locked_kernel {
                             }
                             Err(e) => {
                                 warn!("GPU {} failed! Falling back to CPU... Error: {}", $name, e);
+                                println!("GPU {} failed! Falling back to CPU... Error: {}", $name, e);
+
                                 return Err(e);
                             }
                             Ok(v) => return Ok(v),
