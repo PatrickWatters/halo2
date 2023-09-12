@@ -528,7 +528,6 @@ where
     G: FftGroup<Scalar>,
     Scalar: Field,
 {
-
     match gpu::MultiFFTKernel::create(priority) {
         Ok(k) => {
             info!("GPU FFT kernel instantiated!");
@@ -540,7 +539,7 @@ where
         }
     }
 }
-
+/* 
 /// Wrap `gpu_fft_multiple`
 #[cfg(feature = "gpu")]
 pub fn best_fft_multiple_gpu<Scalar: Field, G: FftGroup<Scalar>>(
@@ -576,7 +575,7 @@ pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
 
     Ok(())
 }
-
+*/
 
 
 #[cfg(feature = "gpu")]
