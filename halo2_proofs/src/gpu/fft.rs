@@ -262,6 +262,9 @@ where
 {
     /// New gpu kernel device
     pub fn create(priority: bool) -> GPUResult<MultiFFTKernel<Scalar,G>> {
+
+        let mut now = Instant::now();
+
         let mut all_devices = opencl::Device::all();
         //let num_devices = all_devices.len();
         let num_devices=4;
@@ -286,6 +289,9 @@ where
                 res.ok()
             })
             .collect();
+       
+        println!("creating MultiFFTKernel took {}ms.", now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64);
+
 
         Ok(MultiFFTKernel {
             kernels,

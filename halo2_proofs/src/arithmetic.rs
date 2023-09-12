@@ -272,12 +272,13 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
     
     now = Instant::now();  
     if let Some(ref mut kern) = kern {
+        println!("let Some(ref mut ker.) took {}ms.", now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64);
+
         if kern
             .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| k.fft_multiple(polys, &omega, log_n))
             .is_ok()
         {
-            let gpu_fft_multiple_total = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
-            println!("gpu_fft_multiple_total took {}ms.", gpu_fft_multiple_total);
+            println!("gpu_fft_multiple_total took {}ms.", now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64);
             return Ok(());
         }
     } 
