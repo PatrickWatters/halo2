@@ -264,19 +264,20 @@ where
     pub fn create(priority: bool) -> GPUResult<MultiFFTKernel<Scalar,G>> {
 
         let mut now = Instant::now();
+        let mut now1 = Instant::now();
 
         let mut all_devices = opencl::Device::all();
         //let num_devices = all_devices.len();
         let num_devices=4;
         let (lock_index, gpu_range) = get_lock_name_and_gpu_range(num_devices);
         
-        println!("get_lock_name_and_gpu_range took {}ms.", now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64);
-
+        println!("get_lock_name_and_gpu_range took {}ms.", now1.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64);
+        now1 = Instant::now();
         let lock = locks::GPULock::lock(lock_index);
 
         let devices: Vec<&opencl::Device> = all_devices.drain(gpu_range).collect();
-       
-        println!("all_devices.drain took {}ms.", now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64);
+     
+        println!("all_devices.drain took {}ms.", now1.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64);
 
         // use all of the  GPUs
         let kernels: Vec<_> = devices
