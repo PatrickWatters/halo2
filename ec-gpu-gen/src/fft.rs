@@ -48,10 +48,15 @@ impl<'a, F: Field + GpuName> SingleFftKernel<'a, F> {
     pub fn radix_fft(&mut self, input: &mut [F], omega: &F, log_n: u32) -> EcResult<()> {
         let closures = program_closures!(|program, input: &mut [F]| -> EcResult<()> {
             let n = 1 << log_n;
+
+            println!("n={}", n);
+
             // All usages are safe as the buffers are initialized from either the host or the GPU
             // before they are read.
             let mut src_buffer = unsafe { program.create_buffer::<F>(n)? };
             let mut dst_buffer = unsafe { program.create_buffer::<F>(n)? };
+            println!("bufers created");
+
             // The precalculated values pq` and `omegas` are valid for radix degrees up to `max_deg`
             let max_deg = cmp::min(MAX_LOG2_RADIX, log_n);
 
@@ -67,6 +72,8 @@ impl<'a, F: Field + GpuName> SingleFftKernel<'a, F> {
                     pq[i].mul_assign(&twiddle);
                 }
             }
+            println!("Precalculate");
+
             let pq_buffer = program.create_buffer_from_slice(&pq)?;
 
             // Precalculate [omega, omega^2, omega^4, omega^8, ..., omega^(2^31)]
@@ -76,6 +83,7 @@ impl<'a, F: Field + GpuName> SingleFftKernel<'a, F> {
                 omegas[i] = omegas[i - 1].pow_vartime([2u64]);
             }
             let omegas_buffer = program.create_buffer_from_slice(&omegas)?;
+            println!("omegas {}",&omegas.len());
 
             program.write_from_buffer(&mut src_buffer, &*input)?;
             // Specifies log2 of `p`, (http://www.bealto.com/gpu-fft_group-1.html)
