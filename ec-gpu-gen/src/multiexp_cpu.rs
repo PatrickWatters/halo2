@@ -412,6 +412,53 @@ mod tests {
 
         assert_eq!(naive, fast);
     }
+    
+    #[test]
+    fn test_with_bn256() {
+        fn naive_multiexp<G: PrimeCurveAffine>(
+            bases: Arc<Vec<G>>,
+            exponents: &[G::Scalar],
+        ) -> G::Curve {
+            assert_eq!(bases.len(), exponents.len());
+
+            let mut acc = G::Curve::identity();
+
+            for (base, exp) in bases.iter().zip(exponents.iter()) {
+                acc.add_assign(&base.mul(*exp));
+            }
+
+            acc
+        }
+
+        const SAMPLES: usize = 1 << 14;
+
+        let rng = &mut rand::thread_rng();
+        let v: Vec<<Bls12 as Engine>::Fr> = (0..SAMPLES)
+            .map(|_| <Bls12 as Engine>::Fr::random(&mut *rng))
+            .collect();
+        let g = Arc::new(
+            (0..SAMPLES)
+                .map(|_| <Bls12 as Engine>::G1::random(&mut *rng).to_affine())
+                .collect::<Vec<_>>(),
+        );
+
+        let now = std::time::Instant::now();
+        let naive = naive_multiexp(g.clone(), &v);
+        println!("Naive: {}", now.elapsed().as_millis());
+
+        let now = std::time::Instant::now();
+        let pool = Worker::new();
+
+        let v = Arc::new(v.into_iter().map(|fr| fr.to_repr()).collect());
+        let fast = multiexp_cpu(&pool, (g, 0), FullDensity, v).wait().unwrap();
+
+        println!("Fast: {}", now.elapsed().as_millis());
+
+        assert_eq!(naive, fast);
+    }
+
+
+
 
     #[test]
     fn test_extend_density_regular() {
