@@ -32,6 +32,7 @@ yastl = "0.1.2"
 # we won't need the exports of `Fp` and `Fp2` any more.
 #blstrs = { version = "0.6.0", features = ["__private_bench"], optional = true }
 blstrs = { version = "0.7.0", features = ["__private_bench", "gpu"] }
+halo2curves ={ path = "../../halo2curves"}
 rand = "0.8"
 lazy_static = "1.2"
 pairing = "0.23.0"

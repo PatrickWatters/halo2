@@ -615,7 +615,7 @@ where
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 #[test_log::test] // Automatically wraps test to initialize logging
-fn test_ecgpu_msm()
+fn test_ecgpu_msm_bls()
 {   use ec_gpu_gen::threadpool::Worker;
     use ec_gpu_gen::rust_gpu_tools::Device;
     use blstrs::Bls12;
