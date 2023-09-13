@@ -105,11 +105,16 @@ impl<'a, F: Field + GpuName> SingleFftKernel<'a, F> {
                 let local_work_size = 1 << cmp::min(deg - 1, MAX_LOG2_LOCAL_WORK_SIZE);
                 let global_work_size = n >> deg;
                 let kernel_name = format!("{}_radix_fft", F::name());
+                println!("kernel_name: {}",kernel_name);
+
                 let kernel = program.create_kernel(
                     &kernel_name,
                     global_work_size as usize,
                     local_work_size as usize,
                 )?;
+
+                println!("kernel created");
+
                 kernel
                     .arg(&src_buffer)
                     .arg(&dst_buffer)
