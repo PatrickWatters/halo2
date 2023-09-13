@@ -15,13 +15,15 @@ fn cfg_if_nightly() {}
 /// `cuda` and/or `opencl` feature is enabled.
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 fn gpu_kernel() {
+    use halo2curves::bn256::Fr;
+    //use halo2curves::bn256::{Fr, Fq, G1Affine, G2Affine};
     use blstrs::{Fp, Fp2, G1Affine, G2Affine, Scalar};
     use ec_gpu_gen::SourceBuilder;
 
     let source_builder = SourceBuilder::new()
-        .add_fft::<Scalar>()
-        .add_multiexp::<G1Affine, Fp>()
-        .add_multiexp::<G2Affine, Fp2>();
+        .add_fft::<Fr>();
+        //.add_multiexp::<G1Affine, Fp>()
+        //.add_multiexp::<G2Affine, Fp2>();
     ec_gpu_gen::generate(&source_builder);
 }
 
