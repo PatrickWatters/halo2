@@ -49,7 +49,7 @@ impl<'a, F: Field + GpuName> SingleFftKernel<'a, F> {
         let closures = program_closures!(|program, input: &mut [F]| -> EcResult<()> {
             let n = 1 << log_n;
 
-            println!("n={}", n);
+            println!("Number of elements={}", n);
 
             // All usages are safe as the buffers are initialized from either the host or the GPU
             // before they are read.
@@ -88,6 +88,8 @@ impl<'a, F: Field + GpuName> SingleFftKernel<'a, F> {
             program.write_from_buffer(&mut src_buffer, &*input)?;
             // Specifies log2 of `p`, (http://www.bealto.com/gpu-fft_group-1.html)
             let mut log_p = 0u32;
+
+
             // Each iteration performs a FFT round
             while log_p < log_n {
                 if let Some(maybe_abort) = &self.maybe_abort {
