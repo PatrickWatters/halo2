@@ -9,6 +9,14 @@ use group::{
     Curve, Group, GroupOpsOwned, ScalarMulOwned,
 };
 
+
+
+#[cfg(any(feature = "cuda", feature = "opencl"))]
+use ec_gpu_gen::fft::FftKernel;
+use crate::gpu;
+use ec_gpu_gen::fft_cpu;
+use ec_gpu_gen::threadpool::Worker;
+
 #[cfg(feature = "gpu")]
 use crate::gpu;
 #[cfg(feature = "gpu")]
@@ -20,7 +28,6 @@ use log::{info, warn};
 use ark_std::{end_timer, start_timer};
 use ark_std::time::Instant;
 use std::error::Error;
-
 use std::time::Duration;
 
 #[derive(serde::Serialize)]
@@ -226,6 +233,49 @@ pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Cu
     
 
 
+}
+
+
+#[cfg(any(feature = "cuda", feature = "opencl"))]
+pub fn best_fft<F: PrimeField + gpu::GpuName>(
+    kern: &mut Option<gpu::LockedFftKernel<F>>,
+    worker: &Worker,
+    coeffs: &mut [&mut [F]],
+    omegas: &[F],
+    log_ns: &[u32],
+)-> gpu::GpuResult<()>{
+    #[cfg(any(feature = "cuda", feature = "opencl"))]
+    if let Some(ref mut kern) = kern {
+        if kern
+            .with(|k: &mut FftKernel<F>| gpu_fft(k, coeffs, omegas, log_ns))
+            .is_ok()
+        {
+            return Ok(());
+        }
+    }
+
+    let log_cpus = worker.log_num_threads();
+    for ((a, omega), log_n) in coeffs.iter_mut().zip(omegas.iter()).zip(log_ns.iter()) {
+        if *log_n <= log_cpus {
+            fft_cpu::serial_fft::<F>(*a, omega, *log_n);
+        } else {
+            fft_cpu::parallel_fft::<F>(*a, worker, omega, *log_n, log_cpus);
+        }
+    }
+
+    Ok(())
+
+
+}
+
+#[cfg(any(feature = "cuda", feature = "opencl"))]
+pub fn gpu_fft<F: PrimeField + gpu::GpuName>(
+    kern: &mut FftKernel<F>,
+    coeffs: &mut [&mut [F]],
+    omegas: &[F],
+    log_ns: &[u32],
+) -> gpu::GpuResult<()> {
+    Ok(kern.radix_fft_many(coeffs, omegas, log_ns)?)
 }
 
 /// Config gpu fft kernel

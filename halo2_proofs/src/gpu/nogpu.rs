@@ -1,92 +1,72 @@
-use super::error::{GPUError, GPUResult};
-use crate::halo2curves::pairing::ff::{PrimeField, ScalarEngine};
-use crate::halo2curves::pairing::CurveAffine;
-use crate::worker::Worker;
+//! This module acts like a polyfill for the case when `bellperson` is compiled without GPU
+//! support.
+
+use super::error::{GpuError, GpuResult};
+use ec_gpu_gen::threadpool::Worker;
+use ff::{Field, PrimeField};
+use group::prime::PrimeCurveAffine;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-// This module is compiled instead of `fft.rs` and `multiexp.rs` if `gpu` feature is disabled.
+use crate::gpu::GpuName;
 
-pub struct MultiFFTKernel<E>(PhantomData<E>)
+pub struct MultiexpKernel<G>(PhantomData<G>)
 where
-    E: ScalarEngine;
+    G: PrimeCurveAffine;
 
-impl<E> MultiFFTKernel<E>
+impl<G> MultiexpKernel<G>
 where
-    E: ScalarEngine,
+    G: PrimeCurveAffine,
 {
-    pub fn create(_: bool) -> GPUResult<MultiFFTKernel<E>> {
-        return Err(GPUError::GPUDisabled);
+    pub fn create(_: bool) -> GpuResult<Self> {
+        Err(GpuError::GpuDisabled)
     }
 
-    pub fn radix_fft(&mut self, _: &mut [E::Fr], _: &E::Fr, _: u32) -> GPUResult<()> {
-        return Err(GPUError::GPUDisabled);
-    }
-}
-
-pub struct MultiexpKernel<E>(PhantomData<E>)
-where
-    E: ScalarEngine;
-
-impl<E> MultiexpKernel<E>
-where
-    E: ScalarEngine,
-{
-    pub fn create(_: bool) -> GPUResult<MultiexpKernel<E>> {
-        return Err(GPUError::GPUDisabled);
-    }
-
-    pub fn multiexp<G>(
+    pub fn multiexp(
         &mut self,
         _: &Worker,
         _: Arc<Vec<G>>,
-        _: Arc<Vec<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>>,
+        _: Arc<Vec<<G::Scalar as PrimeField>::Repr>>,
         _: usize,
         _: usize,
-    ) -> GPUResult<<G as CurveAffine>::Projective>
+    ) -> GpuResult<G::Curve>
     where
-        G: CurveAffine,
+        G: PrimeCurveAffine,
     {
-        return Err(GPUError::GPUDisabled);
-    }
-
-    pub fn dense_multiexp<G: CurveAffine>(
-        &mut self,
-        _: &Worker,
-        _: Arc<Vec<G>>,
-        _: Arc<Vec<<<G::Engine as ScalarEngine>::Fr as PrimeField>::Repr>>,
-        _: usize,
-    ) -> GPUResult<<G as CurveAffine>::Projective>
-    where
-        G::Engine: crate::pairing::Engine,
-    {
-        return Err(GPUError::GPUDisabled);
+        Err(GpuError::GpuDisabled)
     }
 }
-
-use crate::pairing::Engine;
 
 macro_rules! locked_kernel {
-    ($class:ident) => {
-        pub struct $class<E>(PhantomData<E>);
+    (pub struct $class:ident<$generic:ident>
+        where $(
+            $bound:ty: $boundvalue:tt $(+ $morebounds:tt )*,
+        )+
+    ) => {
+        pub struct $class<$generic>(PhantomData<$generic>);
 
-        impl<E> $class<E>
-        where
-            E: Engine,
+        impl<$generic> $class<$generic>
+        where $(
+            $bound: $boundvalue $(+ $morebounds)*,
+        )+
         {
-            pub fn new(_: usize, _: bool) -> $class<E> {
-                $class::<E>(PhantomData)
+            pub fn new(_: bool) -> Self {
+                Self(PhantomData)
             }
 
-            pub fn with<F, R, K>(&mut self, _: F) -> GPUResult<R>
+            pub fn with<Fun, R, K>(&mut self, _: Fun) -> GpuResult<R>
             where
-                F: FnMut(&mut K) -> GPUResult<R>,
+                Fun: FnMut(&mut K) -> GpuResult<R>,
             {
-                return Err(GPUError::GPUDisabled);
+                return Err(GpuError::GpuDisabled);
             }
         }
     };
 }
 
-locked_kernel!(LockedMultiFFTKernel);
-locked_kernel!(LockedMultiexpKernel);
+locked_kernel!(pub struct LockedFftKernel<F> where F: Field + GpuName,);
+locked_kernel!(
+    pub struct LockedMultiexpKernel<G>
+    where
+        G: PrimeCurveAffine,
+);

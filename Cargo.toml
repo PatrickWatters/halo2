@@ -4,7 +4,8 @@ members = [
     "halo2_gadgets",
     "halo2_proofs",
     "sha256test",
-
+    "ec-gpu",
+    "ec-gpu-gen",
 ]
 
 [patch.crates-io]

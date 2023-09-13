@@ -577,7 +577,49 @@ pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
 }
 */
 
+#[cfg(any(feature = "cuda", feature = "opencl"))]
+#[test_log::test] // Automatically wraps test to initialize logging
+fn test_best_fft_multiple_gpu() {
+    use crate::halo2curves::bn256::Fr;
+    use ff::Field;
+    use crate::poly::EvaluationDomain;
+    use rand_core::OsRng;
+    use crate::arithmetic::best_fft_cpu;
+    use crate::arithmetic::best_fft;
+    let worker = ec_gpu_gen::threadpool::Worker::new();
 
+    for k in 18..=20 {
+        let rng = OsRng;
+        // polynomial degree n = 2^k
+        let n = 1u64 << k;
+        // polynomial coeffs
+        let coeffs: Vec<_> = (0..n).map(|_| Fr::random(rng)).collect();
+        // evaluation domain
+        let domain: EvaluationDomain<Fr> = EvaluationDomain::new(1, k);
+
+        println!("Testing FFT for {} elements, degree {}...", n, k);
+
+        let mut prev_fft_coeffs = coeffs.clone();
+
+        let mut now = std::time::Instant::now();
+        
+        best_fft_cpu(&mut prev_fft_coeffs, domain.get_omega(), k);
+        let cpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("CPU took {}ms.", cpu_dur);
+
+        //end_timer!(start);
+        let mut optimized_fft_coeffs = coeffs.clone();
+        now = std::time::Instant::now();
+ 
+        best_fft(&mut None, &worker, &mut [&mut optimized_fft_coeffs], 
+            &[domain.get_omega()], &[k]).unwrap();
+
+        let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        //end_timer!(start);
+        println!("GPU took {}ms.", gpu_dur);
+        assert_eq!(prev_fft_coeffs, optimized_fft_coeffs);
+    }
+}
 #[cfg(feature = "gpu")]
 #[test_log::test] // Automatically wraps test to initialize logging
 fn test_best_fft_multiple_gpu() {

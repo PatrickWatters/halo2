@@ -48,6 +48,13 @@ name = "fft"
 harness = false
 
 [dependencies]
+temp-env = "0.3.0"
+ec-gpu-gen = {path = "../ec-gpu-gen", version = "0.7.0"}
+#ec-gpu = {path = "../ec-gpu", version = "0.2.0"}
+#ec-gpu-gen = {version = "0.7.0"}
+ec-gpu = {version = "0.2.0"}
+blstrs = { version = "0.7.0", features = ["__private_bench"] }
+
 backtrace = { version = "0.3", optional = true }
 rayon = "1.5.1"
 ff = "0.13"
@@ -77,7 +84,9 @@ csv = "1.1"
 
 pairing = { git = 'https://github.com/starslabhq/pairing', package = "pairing_bn256", branch = "primeFieldChar" }
 
-rust-gpu-tools = { version = "0.3.0", optional = true }
+rust-gpu-tools = { version = "0.7.0", default-features = false, optional = true }
+
+#rust-gpu-tools = { version = "0.3.0", optional = true }
 ff-cl-gen = { git = 'https://github.com/starslabhq/ff-cl-gen', optional = true,  branch = "gpuFft" }
 #ff-cl-gen = { path = '../../ff-cl-gen', optional = true}
 
@@ -103,7 +112,9 @@ tracing-subscriber = {version = "0.3", default-features = false, features = ["en
 getrandom = { version = "0.2", features = ["js"] }
 
 [features]
-default = ["batch","gpu"]
+default = ["batch","opencl"]
+cuda = ["ec-gpu-gen/cuda", "fs2","blstrs/gpu"]
+opencl = ["ec-gpu-gen/opencl", "fs2","blstrs/gpu"]
 dev-graph = ["plotters", "tabbycat"]
 gadget-traces = ["backtrace"]
 sanity-checks = []
@@ -113,9 +124,20 @@ circuit-params = []
 gpu = ["rust-gpu-tools", "ff-cl-gen", "fs2", "lazy_static", "crossbeam", "futures/thread-pool"]
 gwc = []
 cpu=[]
+
 [lib]
 bench = false
 
 [[example]]
 name = "circuit-layout"
 required-features = ["dev-graph"]
+
+#[build-dependencies]
+#ec-gpu-gen = { version = "0.7.0" }
+[build-dependencies]
+#ec-gpu-gen = {version = "0.7.0"}
+ec-gpu-gen = { path = "../ec-gpu-gen", version = "0.7.0" }
+rustversion = "1.0.6"
+blstrs = { version = "0.7.0", features = ["__private_bench"] }
+#ec-gpu-gen = { version = "0.7.0" }
+#rustversion = "1.0.6"

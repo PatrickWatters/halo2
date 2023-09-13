@@ -5,23 +5,13 @@ use ec_gpu::GpuName;
 use ff::Field;
 use log::{error, info};
 use rust_gpu_tools::{program_closures, LocalBuffer, Program};
-use std::time::Instant;
+
 use crate::error::{EcError, EcResult};
 use crate::threadpool::THREAD_POOL;
-use std::error::Error;
+
 const LOG2_MAX_ELEMENTS: usize = 32; // At most 2^32 elements is supported.
 const MAX_LOG2_RADIX: u32 = 8; // Radix256
 const MAX_LOG2_LOCAL_WORK_SIZE: u32 = 7; // 128
-
-struct FFTLoggingInfo {
-    toaltime: String,
-    size: String,
-    logn: String,
-    write_from_buffer: String,
-    fft_rounds: String,
-    read_into_buffer: String,
-    precalculate: String,
-}
 
 /// FFT kernel for a single GPU.
 pub struct SingleFftKernel<'a, F>
@@ -57,25 +47,7 @@ impl<'a, F: Field + GpuName> SingleFftKernel<'a, F> {
     /// * `log_n` - Specifies log2 of number of elements
     pub fn radix_fft(&mut self, input: &mut [F], omega: &F, log_n: u32) -> EcResult<()> {
         let closures = program_closures!(|program, input: &mut [F]| -> EcResult<()> {
-            let mut dur = Instant::now();
-
-            let mut stat_collector = FFTLoggingInfo{
-                toaltime:String::from(""),
-                size:String::from(""),
-                logn:String::from(""),
-                fft_rounds:String::from(""), 
-                write_from_buffer:String::from(""), 
-                read_into_buffer:String::from(""), 
-                precalculate:String::from(""), 
-
-            };
-            let mut now: Instant = Instant::now();
-
             let n = 1 << log_n;
-
-            stat_collector.size = format!("{}",n);
-            stat_collector.logn = format!("{}",log_n as u32);
-
             // All usages are safe as the buffers are initialized from either the host or the GPU
             // before they are read.
             let mut src_buffer = unsafe { program.create_buffer::<F>(n)? };
@@ -105,18 +77,7 @@ impl<'a, F: Field + GpuName> SingleFftKernel<'a, F> {
             }
             let omegas_buffer = program.create_buffer_from_slice(&omegas)?;
 
-            let precalculate_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
-            //println!("precalculate took {}ms.", precalculate_dur);
-            stat_collector.precalculate = format!("{:?}ms",precalculate_dur);
-
-            now = Instant::now();
             program.write_from_buffer(&mut src_buffer, &*input)?;
-            let write_from_buffer_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
-            //println!("write_from_buffer took {}ms.", write_from_buffer_dur);
-            stat_collector.write_from_buffer = format!("{:?}ms",write_from_buffer_dur);
-
-            now = Instant::now();
-
             // Specifies log2 of `p`, (http://www.bealto.com/gpu-fft_group-1.html)
             let mut log_p = 0u32;
             // Each iteration performs a FFT round
@@ -155,25 +116,7 @@ impl<'a, F: Field + GpuName> SingleFftKernel<'a, F> {
                 std::mem::swap(&mut src_buffer, &mut dst_buffer);
             }
 
-            let fft_rounds_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
-            //println!("fft_rounds took {}ms.", fft_rounds_dur);
-            stat_collector.fft_rounds = format!("{:?}ms",fft_rounds_dur);
-
-
-            now = Instant::now();
-
             program.read_into_buffer(&src_buffer, input)?;
-
-            let read_into_buffer_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
-            //println!("read_into_buffer took {}ms.", read_into_buffer_dur);
-            stat_collector.read_into_buffer = format!("{:?}ms",read_into_buffer_dur);
-            
-            let gpu_dur = dur.elapsed().as_secs() * 1000 + dur.elapsed().subsec_millis() as u64;
-            //println!("radix_fft took {}ms.", gpu_dur);
-            stat_collector.toaltime = format!("{:?}ms",gpu_dur);
-            
-            let _ = log_stats(stat_collector);
-
 
             Ok(())
         });
@@ -254,23 +197,17 @@ where
     /// * `log_n` - Specifies log2 of number of elements
     ///
     /// Uses all available GPUs to distribute the work.
-    /// 
-    /// 
-
     pub fn radix_fft_many(
         &mut self,
         inputs: &mut [&mut [F]],
         omegas: &[F],
         log_ns: &[u32],
     ) -> EcResult<()> {
-
-        let n: usize = inputs.len();
-        //let num_devices = self.kernels.len();
-        let num_devices = 1;
+        let n = inputs.len();
+        let num_devices = self.kernels.len();
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
 
-        let result: Arc<RwLock<Result<(), EcError>>> = Arc::new(RwLock::new(Ok(())));
-
+        let result = Arc::new(RwLock::new(Ok(())));
 
         THREAD_POOL.scoped(|s| {
             for (((inputs, omegas), log_ns), kern) in inputs
@@ -297,36 +234,6 @@ where
             }
         });
 
-
-
         Arc::try_unwrap(result).unwrap().into_inner().unwrap()
     }
-}
-
-fn log_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
-{   
-    use std::path::Path;
-    //let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/gpu_fft_breakdown.csv";
-    let filename = "ec_gpu_fft_stats.csv";
-
-    let already_exists= Path::new(filename).exists();
-
-    let file = std::fs::OpenOptions::new()
-    .write(true)
-    .create(true)
-    .append(true)
-    .open(filename)
-    .unwrap();
-
-    let mut wtr = csv::Writer::from_writer(file);
-    
-    if already_exists == false
-    {
-        wtr.write_record(&["size","log_n", "total_time","precalculate", "read_into_buffer", "fft_rounds", "write_from_buffer"])?;    
-    }
-
-    wtr.write_record(&[stat_collector.size, stat_collector.logn, stat_collector.toaltime, stat_collector.precalculate, 
-        stat_collector.read_into_buffer, stat_collector.fft_rounds, stat_collector.write_from_buffer])?;
-    wtr.flush()?;
-    Ok(())    
 }

@@ -1,37 +1,25 @@
-use rust_gpu_tools::opencl;
+use ec_gpu_gen::EcError;
 
-/// Gpu err
 #[derive(thiserror::Error, Debug)]
-pub enum GPUError {
-    /// Simple
+pub enum GpuError {
     #[error("GPUError: {0}")]
     Simple(&'static str),
-
-    /// OpenCL
-    #[error("OpenCL Error: {0}")]
-    OpenCL(#[from] opencl::GPUError),
-
-    /// GPUTaken
-    #[error("GPU taken by a high priority process!")]
-    GPUTaken,
-
-    /// KernelUninitialized
+    #[cfg(any(feature = "cuda", feature = "opencl"))]
     #[error("No kernel is initialized!")]
     KernelUninitialized,
-
-    /// GPUDisabled
+    #[error("EC GPU error: {0}")]
+    EcGpu(#[from] EcError),
     #[error("GPU accelerator is disabled!")]
-    GPUDisabled,
+    GpuDisabled,
 }
 
-/// Type GPUResult
-pub type GPUResult<T> = std::result::Result<T, GPUError>;
+pub type GpuResult<T> = std::result::Result<T, GpuError>;
 
-impl From<std::boxed::Box<dyn std::any::Any + std::marker::Send>> for GPUError {
+impl From<std::boxed::Box<dyn std::any::Any + std::marker::Send>> for GpuError {
     fn from(e: std::boxed::Box<dyn std::any::Any + std::marker::Send>) -> Self {
         match e.downcast::<Self>() {
             Ok(err) => *err,
-            Err(_) => GPUError::Simple("An unknown GPU error happened!"),
+            Err(_) => GpuError::Simple("An unknown GPU error happened!"),
         }
     }
 }
