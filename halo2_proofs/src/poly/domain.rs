@@ -587,8 +587,107 @@ fn omega<F: PrimeField>(num_coeffs: usize) -> F {
 }
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
+use ec_gpu_gen::threadpool::Worker;
+use std::sync::Arc;
+use ec_gpu_gen::multiexp::MultiexpKernel;
+use ec_gpu_gen::EcError;
+use ec_gpu_gen::multiexp_cpu::QueryDensity;
+use group::prime::PrimeCurveAffine;
+use ec_gpu::GpuName;
+use ec_gpu_gen::multiexp_cpu::SourceBuilder;
+fn multiexp_gpu<Q, D, G, S>(
+    pool: &Worker,
+    bases: S,
+    density_map: D,
+    exponents: Arc<Vec<<G::Scalar as PrimeField>::Repr>>,
+    kern: &mut MultiexpKernel<G>,
+) -> Result<G::Curve, EcError>
+where
+    for<'a> &'a Q: QueryDensity,
+    D: Send + Sync + 'static + Clone + AsRef<Q>,
+    G: PrimeCurveAffine + GpuName,
+    S: SourceBuilder<G>,
+{
+    let exps = density_map.as_ref().generate_exps::<G::Scalar>(exponents);
+    let (bss, skip) = bases.get();
+    kern.multiexp(pool, bss, exps, skip).map_err(Into::into)
+}
+
+#[cfg(any(feature = "cuda", feature = "opencl"))]
 #[test_log::test] // Automatically wraps test to initialize logging
-fn test_ecgpu()
+fn test_ecgpu_msm()
+{   use ec_gpu_gen::threadpool::Worker;
+    use ec_gpu_gen::rust_gpu_tools::Device;
+    use blstrs::Bls12;
+    use ec_gpu_gen::multiexp::MultiexpKernel;
+    use ec_gpu_gen::multiexp_cpu::multiexp_cpu;
+    use std::time::Instant;
+    use rand_core::OsRng;
+    use std::sync::Arc;
+    use ec_gpu_gen::program;
+    use pairing::Engine;
+    use group::Curve;
+    use ec_gpu_gen::multiexp_cpu::FullDensity;
+    //use crate::halo2curves::pairing::Engine;
+    //fil_logger::maybe_init();
+    const MAX_LOG_D: usize = 16;
+    const START_LOG_D: usize = 10;
+    let devices = Device::all();
+    let programs = devices
+        .iter()
+        .map(|device| program!(device))
+        .collect::<Result<_, _>>()
+        .expect("Cannot create programs!");
+    let mut kern = MultiexpKernel::<<Bls12 as Engine>::G1Affine>::create(programs, &devices)
+        .expect("Cannot initialize kernel!");
+    let pool = Worker::new();
+
+    let mut rng = OsRng;
+
+    let mut bases = (0..(1 << START_LOG_D))
+        .map(|_| <Bls12 as Engine>::G1::random(&mut rng).to_affine())
+        .collect::<Vec<_>>();
+
+    for log_d in START_LOG_D..=MAX_LOG_D {
+        let g = Arc::new(bases.clone());
+
+        let samples = 1 << log_d;
+        println!("Testing Multiexp for {} elements...", samples);
+
+        let v = Arc::new(
+            (0..samples)
+                .map(|_| <Bls12 as Engine>::Fr::random(&mut rng).to_repr())
+                .collect::<Vec<_>>(),
+        );
+
+        let mut now = Instant::now();
+        let gpu = multiexp_gpu(&pool, (g.clone(), 0), FullDensity, v.clone(), &mut kern).unwrap();
+        let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("GPU took {}ms.", gpu_dur);
+
+        now = Instant::now();
+        let cpu = multiexp_cpu(&pool, (g.clone(), 0), FullDensity, v.clone())
+            .wait()
+            .unwrap();
+        let cpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("CPU took {}ms.", cpu_dur);
+
+        println!("Speedup: x{}", cpu_dur as f32 / gpu_dur as f32);
+
+        assert_eq!(cpu, gpu);
+
+        println!("============================");
+
+        bases = [bases.clone(), bases.clone()].concat();
+
+    }
+}
+
+
+
+#[cfg(any(feature = "cuda", feature = "opencl"))]
+#[test_log::test] // Automatically wraps test to initialize logging
+fn test_ecgpu_ffts()
 {   use ec_gpu_gen::threadpool::Worker;
     use ec_gpu_gen::rust_gpu_tools::Device;
     use ec_gpu_gen::fft::FftKernel;
