@@ -687,7 +687,7 @@ fn test_ecgpu_msm()
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 #[test_log::test] // Automatically wraps test to initialize logging
-fn test_ecgpu_ffts()
+fn test_ecgpu_fft_bls()
 {   use ec_gpu_gen::threadpool::Worker;
     use ec_gpu_gen::rust_gpu_tools::Device;
     use ec_gpu_gen::fft::FftKernel;
@@ -745,7 +745,7 @@ fn test_ecgpu_ffts()
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 #[test_log::test] // Automatically wraps test to initialize logging
-fn test_ecgpubn256()
+fn test_ecgpu_fft_bn256()
 {   use ec_gpu_gen::threadpool::Worker;
     use ec_gpu_gen::rust_gpu_tools::Device;
     use ec_gpu_gen::fft::FftKernel;
