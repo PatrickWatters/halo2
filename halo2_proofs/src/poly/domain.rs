@@ -609,17 +609,16 @@ fn test_best_fft_multiple_gpu() {
 
         //end_timer!(start);
         let mut optimized_fft_coeffs = coeffs.clone();
-        let mut before_optimized_fft_coeffs = coeffs.clone();
 
         now = std::time::Instant::now();
  
-        best_fft(&mut None, &worker, &mut [&mut optimized_fft_coeffs], 
+        best_fft(&worker, &mut [&mut optimized_fft_coeffs], 
             &[domain.get_omega()], &[k]).unwrap();
 
         let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
         //end_timer!(start);
         println!("GPU took {}ms.", gpu_dur);
-        assert_eq!(before_optimized_fft_coeffs, optimized_fft_coeffs);
+        assert_eq!(coeffs, optimized_fft_coeffs);
     }
 }
 #[cfg(feature = "gpu")]

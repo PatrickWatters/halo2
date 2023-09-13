@@ -238,14 +238,19 @@ pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Cu
 
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
+use crate::gpu::LockedFftKernel;
+
 pub fn best_fft<F: PrimeField + gpu::GpuName>(
-    kern: &mut Option<gpu::LockedFftKernel<F>>,
+    //kern: &mut Option<gpu::LockedFftKernel<F>>,
     worker: &Worker,
     coeffs: &mut [&mut [F]],
     omegas: &[F],
     log_ns: &[u32],
 )-> gpu::GpuResult<()>{
     #[cfg(any(feature = "cuda", feature = "opencl"))]
+    //let mut kern: Option<gpu::LockedFftKernel<F>>= 
+    let mut kern = Some(LockedFftKernel::new(false));
+
     if let Some(ref mut kern) = kern {
         if kern
             .with(|k: &mut FftKernel<F>| gpu_fft(k, coeffs, omegas, log_ns))
