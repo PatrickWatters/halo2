@@ -257,8 +257,12 @@ pub fn best_fft<F: PrimeField + gpu::GpuName>(
     let log_cpus = worker.log_num_threads();
     for ((a, omega), log_n) in coeffs.iter_mut().zip(omegas.iter()).zip(log_ns.iter()) {
         if *log_n <= log_cpus {
+            println!("cpu serial_fft");
+
             fft_cpu::serial_fft::<F>(*a, omega, *log_n);
         } else {
+            println!("cpu parallel");
+
             fft_cpu::parallel_fft::<F>(*a, worker, omega, *log_n, log_cpus);
         }
     }
