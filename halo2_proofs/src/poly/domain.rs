@@ -587,6 +587,7 @@ fn test_best_fft_multiple_gpu() {
     use crate::arithmetic::best_fft_cpu;
     use crate::arithmetic::best_fft;
     let worker = ec_gpu_gen::threadpool::Worker::new();
+    use crate::gpu::LockedFftKernel;
 
     for k in 14..=15 {
         let rng = OsRng;
@@ -611,8 +612,9 @@ fn test_best_fft_multiple_gpu() {
         let mut optimized_fft_coeffs = coeffs.clone();
 
         now = std::time::Instant::now();
- 
-        best_fft(&worker, &mut [&mut optimized_fft_coeffs], 
+        let mut fft_kern = Some(LockedFftKernel::new(false));
+
+        best_fft(&mut fft_kern, &worker, &mut [&mut optimized_fft_coeffs], 
             &[domain.get_omega()], &[k]).unwrap();
 
         let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
