@@ -256,6 +256,8 @@ pub fn best_fft<F: PrimeField + gpu::GpuName>(
             .with(|k: &mut FftKernel<F>| gpu_fft(k, coeffs, omegas, log_ns))
             .is_ok()
         {
+            println!("got response");
+
             return Ok(());
         }
     }
