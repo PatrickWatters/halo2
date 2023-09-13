@@ -3,7 +3,7 @@
 //!
 //! [halo]: https://eprint.iacr.org/2019/1021
 
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "cuda", feature = "opencl"))]
 use crate::arithmetic::best_fft_gpu;
 
 #[cfg(feature = "cpu")]
@@ -239,7 +239,7 @@ impl<'params, C: CurveAffine> ParamsProver<'params, C> for ParamsIPA<C> {
 #[cfg(test)]
 mod test {
 
-    #[cfg(feature = "gpu")]
+    #[cfg(any(feature = "cuda", feature = "opencl"))]
     use crate::arithmetic::best_fft_gpu;
 
     #[cfg(feature = "cpu")]

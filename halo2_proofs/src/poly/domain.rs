@@ -1,7 +1,7 @@
 //! Contains utilities for performing polynomial arithmetic over an evaluation
 //! domain that is of a suitable size for the application.
 
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "cuda", feature = "opencl"))]
 use crate::arithmetic::best_fft_gpu;
 
 #[cfg(feature = "cpu")]
@@ -23,7 +23,7 @@ use group::Group as CryptGroup;
 use test_log;
 
 use std::marker::PhantomData;
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "cuda", feature = "opencl"))]
 use crate::gpu;
 use log::{info, warn};
 use std::time::Duration;
@@ -270,7 +270,7 @@ impl<F: WithSmallOrderMulGroup<3>> EvaluationDomain<F> {
 
         self.distribute_powers_zeta(&mut a.values, true);
         a.values.resize(self.extended_len(), F::ZERO);
-        #[cfg(feature = "gpu")]
+        #[cfg(any(feature = "cuda", feature = "opencl"))]
         best_fft_gpu(&mut [&mut a.values], self.extended_omega, self.extended_k).unwrap();
 
         #[cfg(feature = "cpu")]
@@ -382,7 +382,7 @@ impl<F: WithSmallOrderMulGroup<3>> EvaluationDomain<F> {
 
     fn ifft(a: &mut [F], omega_inv: F, log_n: u32, divisor: F) {
 
-        #[cfg(feature = "gpu")]
+        #[cfg(any(feature = "cuda", feature = "opencl"))]
         best_fft_gpu(&mut [a], omega_inv, log_n).unwrap();
 
         #[cfg(feature = "cpu")]
@@ -521,61 +521,7 @@ pub struct PinnedEvaluationDomain<'a, F: Field> {
     omega: &'a F,
 }
 
-/// Config gpu fft kernel
-#[cfg(feature = "gpu")]
-pub fn create_fft_kernel<Scalar,G>(_log_d: usize, priority: bool) -> Option<gpu::MultiFFTKernel<Scalar,G>>
-where
-    G: FftGroup<Scalar>,
-    Scalar: Field,
-{
-    match gpu::MultiFFTKernel::create(priority) {
-        Ok(k) => {
-            info!("GPU FFT kernel instantiated!");
-            Some(k)
-        }
-        Err(e) => {
-            warn!("Cannot instantiate GPU FFT kernel! Error: {}", e);
-            None
-        }
-    }
-}
-/* 
-/// Wrap `gpu_fft_multiple`
-#[cfg(feature = "gpu")]
-pub fn best_fft_multiple_gpu<Scalar: Field, G: FftGroup<Scalar>>(
-    polys: &mut [&mut [G]],
-    omega: &Scalar,
-    log_n: u32,
-) -> gpu::GPUResult<()> {
-    use crate::gpu::LockedMultiFFTKernel;
 
-    let mut kern: Option<LockedMultiFFTKernel<_,_>> = Some(LockedMultiFFTKernel::<_,_>::new(log_n as usize, false));
-
-    if let Some(ref mut kern) = kern {
-        if kern
-            .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| gpu_fft_multiple(k, polys, omega, log_n))
-            .is_ok()
-        {
-            println!("using multiple GPUs");
-            return Ok(());
-        }
-    }
-    Ok(())
-}
-
-/// Use multiple gpu fft
-#[cfg(feature = "gpu")]
-pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
-    kern: &mut gpu::MultiFFTKernel<Scalar,G>,
-    polys: &mut [&mut [G]],
-    omega: &Scalar,
-    log_n: u32,
-) -> gpu::GPUResult<()> {
-    kern.fft_multiple(polys, omega, log_n)?;
-
-    Ok(())
-}
-*/
 fn omega<F: PrimeField>(num_coeffs: usize) -> F {
     // Compute omega, the 2^exp primitive root of unity
     let exp = (num_coeffs as f32).log2().floor() as u32;
@@ -757,9 +703,7 @@ fn test_best_fft_multiple_gpu() {
     use rand_core::OsRng;
     use crate::arithmetic::best_fft_cpu;
     use crate::arithmetic::best_fft;
-    let worker = ec_gpu_gen::threadpool::Worker::new();
-    use crate::gpu::LockedFftKernel;
-
+    
     for k in 14..=15 {
         let rng = OsRng;
         // polynomial degree n = 2^k
@@ -783,9 +727,8 @@ fn test_best_fft_multiple_gpu() {
         let mut optimized_fft_coeffs = coeffs.clone();
 
         now = std::time::Instant::now();
-        let mut fft_kern = Some(LockedFftKernel::new(false));
 
-        best_fft(&mut fft_kern, &worker, &mut [&mut optimized_fft_coeffs], 
+        best_fft(&mut [&mut optimized_fft_coeffs], 
             &[domain.get_omega()], &[k]).unwrap();
 
         let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
@@ -796,8 +739,7 @@ fn test_best_fft_multiple_gpu() {
 }
 
 
-
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "cuda", feature = "opencl"))]
 #[test_log::test] // Automatically wraps test to initialize logging
 fn test_best_fft_multiple_gpu() {
 
@@ -869,7 +811,7 @@ fn test_fft() {
 
         let mut prev_fft_coeffs = coeffs.clone();
 
-        #[cfg(feature = "gpu")]
+        #[cfg(any(feature = "cuda", feature = "opencl"))]
         best_fft_gpu(&mut [&mut prev_fft_coeffs], domain.get_omega(), k).unwrap();
 
         #[cfg(feature = "cpu")]

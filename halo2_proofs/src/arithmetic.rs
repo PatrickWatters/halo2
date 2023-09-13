@@ -10,22 +10,6 @@ use group::{
 };
 
 
-
-#[cfg(any(feature = "cuda", feature = "opencl"))]
-use ec_gpu_gen::fft::FftKernel;
-#[cfg(any(feature = "cuda", feature = "opencl"))]
-use crate::gpu;
-use ec_gpu_gen::fft_cpu;
-use ec_gpu_gen::threadpool::Worker;
-
-#[cfg(feature = "gpu")]
-use crate::gpu;
-#[cfg(feature = "gpu")]
-use crate::gpu::LockedMultiFFTKernel;
-#[cfg(feature = "gpu")]
-use::halo2curves::bn256::G1;
-#[cfg(feature = "gpu")]
-use log::{info, warn};
 use ark_std::{end_timer, start_timer};
 use ark_std::time::Instant;
 use std::error::Error;
@@ -231,23 +215,26 @@ pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Cu
         acc
     }
 
-    
-
-
 }
 
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
+use crate::gpu;
+use ec_gpu_gen::threadpool::Worker;
 use crate::gpu::LockedFftKernel;
+use crate::halo2curves::bn256::Fr;
+use ec_gpu_gen::fft::FftKernel;
+use ec_gpu_gen::fft_cpu;
 
-pub fn best_fft<F: PrimeField + gpu::GpuName>(
-    kern: &mut Option<gpu::LockedFftKernel<F>>,
-    worker: &Worker,
+pub fn best_fft_gpu<F: PrimeField + gpu::GpuName>(
+    //kern: &mut Option<gpu::LockedFftKernel<F>>,
+    //worker: &Worker,
     coeffs: &mut [&mut [F]],
     omegas: &[F],
     log_ns: &[u32],
 )-> gpu::GpuResult<()>{
-    #[cfg(any(feature = "cuda", feature = "opencl"))]
+
+    let mut kern = Some(LockedFftKernel::new(false));
 
     if let Some(ref mut kern) = kern {
         if kern
@@ -259,7 +246,8 @@ pub fn best_fft<F: PrimeField + gpu::GpuName>(
             return Ok(());
         }
     }
-    /*
+
+    let worker = ec_gpu_gen::threadpool::Worker::new();
     let log_cpus = worker.log_num_threads();
     for ((a, omega), log_n) in coeffs.iter_mut().zip(omegas.iter()).zip(log_ns.iter()) {
         if *log_n <= log_cpus {
@@ -269,10 +257,10 @@ pub fn best_fft<F: PrimeField + gpu::GpuName>(
         } else {
             println!("cpu parallel");
 
-            fft_cpu::parallel_fft::<F>(*a, worker, omega, *log_n, log_cpus);
+            fft_cpu::parallel_fft::<F>(*a, &worker, omega, *log_n, log_cpus);
         }
     }
-    */
+  
     Ok(())
 
 
@@ -289,64 +277,6 @@ pub fn gpu_fft<F: PrimeField + gpu::GpuName>(
 
     Ok(kern.radix_fft_many(coeffs, omegas, log_ns)?)
 }
-
-
-fn log_msm_stats(stat_collector:MSMLoggingInfo)-> Result<(), Box<dyn Error>>
-{   
-    use std::path::Path;
-    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/cpu_msm_times.csv";
-    //let filename = "../halo2/stats/cpu_msm_times.csv";
-    //let filename = "msm_timest.csv";
-
-    let already_exists= Path::new(filename).exists();
-
-    let file = std::fs::OpenOptions::new()
-    .write(true)
-    .create(true)
-    .append(true)
-    .open(filename)
-    .unwrap();
-
-    let mut wtr = csv::Writer::from_writer(file);
-    
-    if already_exists == false
-    {
-        wtr.write_record(&["num_coeffs","msm_duration"])?;    
-    }
-
-    wtr.write_record(&[stat_collector.num_coeffs, stat_collector.msm_duration,])?;
-    wtr.flush()?;
-    Ok(())    
-}
-
-fn log_fft_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
-{   
-    use std::path::Path;
-    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/cpu_fft_times.csv";
-    //let filename = "../halo2/stats/cpu_fft_times.csv";
-    //let filename = "cpu_fft_times.csv";
-
-    let already_exists= Path::new(filename).exists();
-
-    let file = std::fs::OpenOptions::new()
-    .write(true)
-    .create(true)
-    .append(true)
-    .open(filename)
-    .unwrap();
-
-    let mut wtr = csv::Writer::from_writer(file);
-    
-    if already_exists == false
-    {
-        wtr.write_record(&["size","log_n", "fft_type", "total_duration (ms)"])?;    
-    }
-
-    wtr.write_record(&[stat_collector.size, stat_collector.logn, stat_collector.fft_type, stat_collector.fft_duration,])?;
-    wtr.flush()?;
-    Ok(())    
-}
-
 
 
 
@@ -483,11 +413,7 @@ pub fn recursive_butterfly_arithmetic<Scalar: Field, G: FftGroup<Scalar>>(
 
 /// Convert coefficient bases group elements to lagrange basis by inverse FFT.
 pub fn g_to_lagrange<C: CurveAffine>(g_projective: Vec<C::Curve>, k: u32) -> Vec<C> {
-    #[cfg(feature = "gpu")]
-    use crate::gpu::LockedMultiFFTKernel;
-    #[cfg(feature = "gpu")]
-    use crate::arithmetic::best_fft_gpu;
-
+ 
     let n_inv = C::Scalar::TWO_INV.pow_vartime(&[k as u64, 0, 0, 0]);
     let mut omega_inv = C::Scalar::ROOT_OF_UNITY_INV;
     for _ in k..C::Scalar::S {
@@ -495,12 +421,12 @@ pub fn g_to_lagrange<C: CurveAffine>(g_projective: Vec<C::Curve>, k: u32) -> Vec
     }
 
     let mut g_lagrange_projective = g_projective;
-
-    #[cfg(feature = "gpu")]
+    
+    #[cfg(any(feature = "cuda", feature = "opencl"))]
     best_fft_gpu(&mut [&mut g_lagrange_projective], omega_inv, k).unwrap();
 
     #[cfg(feature = "cpu")]
-     best_fft_cpu(&mut g_lagrange_projective, omega_inv, k);
+    best_fft_cpu(&mut g_lagrange_projective, omega_inv, k);
     
 
     parallelize(&mut g_lagrange_projective, |g, _| {
@@ -725,4 +651,60 @@ fn test_lagrange_interpolate() {
             assert_eq!(eval_polynomial(&poly, *point), *eval);
         }
     }
+}
+
+fn log_msm_stats(stat_collector:MSMLoggingInfo)-> Result<(), Box<dyn Error>>
+{   
+    use std::path::Path;
+    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/cpu_msm_times.csv";
+    //let filename = "../halo2/stats/cpu_msm_times.csv";
+    //let filename = "msm_timest.csv";
+
+    let already_exists= Path::new(filename).exists();
+
+    let file = std::fs::OpenOptions::new()
+    .write(true)
+    .create(true)
+    .append(true)
+    .open(filename)
+    .unwrap();
+
+    let mut wtr = csv::Writer::from_writer(file);
+    
+    if already_exists == false
+    {
+        wtr.write_record(&["num_coeffs","msm_duration"])?;    
+    }
+
+    wtr.write_record(&[stat_collector.num_coeffs, stat_collector.msm_duration,])?;
+    wtr.flush()?;
+    Ok(())    
+}
+
+fn log_fft_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
+{   
+    use std::path::Path;
+    let filename = "/home/project2reu/patrick/gpuhalo2/halo2/stats/cpu_fft_times.csv";
+    //let filename = "../halo2/stats/cpu_fft_times.csv";
+    //let filename = "cpu_fft_times.csv";
+
+    let already_exists= Path::new(filename).exists();
+
+    let file = std::fs::OpenOptions::new()
+    .write(true)
+    .create(true)
+    .append(true)
+    .open(filename)
+    .unwrap();
+
+    let mut wtr = csv::Writer::from_writer(file);
+    
+    if already_exists == false
+    {
+        wtr.write_record(&["size","log_n", "fft_type", "total_duration (ms)"])?;    
+    }
+
+    wtr.write_record(&[stat_collector.size, stat_collector.logn, stat_collector.fft_type, stat_collector.fft_duration,])?;
+    wtr.flush()?;
+    Ok(())    
 }
