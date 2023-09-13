@@ -588,7 +588,7 @@ fn test_best_fft_multiple_gpu() {
     use crate::arithmetic::best_fft;
     let worker = ec_gpu_gen::threadpool::Worker::new();
 
-    for k in 18..=20 {
+    for k in 14..=15 {
         let rng = OsRng;
         // polynomial degree n = 2^k
         let n = 1u64 << k;

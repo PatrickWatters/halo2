@@ -203,12 +203,16 @@ where
         omegas: &[F],
         log_ns: &[u32],
     ) -> EcResult<()> {
+        println!("inside radix_fft_many");
+
         let n = inputs.len();
         let num_devices = self.kernels.len();
         let chunk_size = ((n as f64) / (num_devices as f64)).ceil() as usize;
+        println!("n={},num_devices={},chunk_size={}", n, num_devices, chunk_size);
 
         let result = Arc::new(RwLock::new(Ok(())));
 
+        
         THREAD_POOL.scoped(|s| {
             for (((inputs, omegas), log_ns), kern) in inputs
                 .chunks_mut(chunk_size)
