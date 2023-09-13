@@ -13,6 +13,7 @@ use group::{
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 use ec_gpu_gen::fft::FftKernel;
+#[cfg(any(feature = "cuda", feature = "opencl"))]
 use crate::gpu;
 use ec_gpu_gen::fft_cpu;
 use ec_gpu_gen::threadpool::Worker;
@@ -253,7 +254,7 @@ pub fn best_fft<F: PrimeField + gpu::GpuName>(
             return Ok(());
         }
     }
-
+    /*
     let log_cpus = worker.log_num_threads();
     for ((a, omega), log_n) in coeffs.iter_mut().zip(omegas.iter()).zip(log_ns.iter()) {
         if *log_n <= log_cpus {
@@ -266,7 +267,7 @@ pub fn best_fft<F: PrimeField + gpu::GpuName>(
             fft_cpu::parallel_fft::<F>(*a, worker, omega, *log_n, log_cpus);
         }
     }
-
+    */
     Ok(())
 
 
