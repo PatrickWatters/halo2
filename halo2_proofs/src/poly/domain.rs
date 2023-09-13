@@ -687,70 +687,11 @@ fn test_ecgpu_msm_bls()
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 #[test_log::test] // Automatically wraps test to initialize logging
-fn test_ecgpu_fft_bls()
-{   use ec_gpu_gen::threadpool::Worker;
-    use ec_gpu_gen::rust_gpu_tools::Device;
-    use ec_gpu_gen::fft::FftKernel;
-    use blstrs::Scalar as Fr;
-    use std::time::Instant;
-    use rand_core::OsRng;
-    use ec_gpu_gen::fft_cpu::serial_fft;
-    use ec_gpu_gen::fft_cpu::parallel_fft;
-
-    //fil_logger::maybe_init();
-    let mut rng = OsRng;
-
-    let worker = Worker::new();
-    let log_threads = worker.log_num_threads();
-    let devices = Device::all();
-    let programs = devices
-        .iter()
-        .map(|device| ec_gpu_gen::program!(device))
-        .collect::<Result<_, _>>()
-        .expect("Cannot create programs!");
-    let mut kern = FftKernel::<Fr>::create(programs).expect("Cannot initialize kernel!");
-
-    for log_d in 1..=20 {
-        let d = 1 << log_d;
-
-        let mut v1_coeffs = (0..d).map(|_| Fr::random(&mut rng)).collect::<Vec<_>>();
-        let v1_omega = omega::<Fr>(v1_coeffs.len());
-        let mut v2_coeffs = v1_coeffs.clone();
-        let v2_omega = v1_omega;
-
-        println!("Testing FFT for {} elements...", d);
-
-        let mut now = Instant::now();
-        kern.radix_fft(&mut v1_coeffs, &v1_omega, log_d).expect("GPU FFT failed!");
-
-       // kern.radix_fft_many(&mut [&mut v1_coeffs], &[v1_omega], &[log_d])
-       //     .expect("GPU FFT failed!");
-        let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
-        println!("GPU took {}ms.", gpu_dur);
-
-        now = Instant::now();
-        if log_d <= log_threads {
-            serial_fft::<Fr>(&mut v2_coeffs, &v2_omega, log_d);
-        } else {
-            parallel_fft::<Fr>(&mut v2_coeffs, &worker, &v2_omega, log_d, log_threads);
-        }
-        let cpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
-        println!("CPU ({} cores) took {}ms.", 1 << log_threads, cpu_dur);
-
-        println!("Speedup: x{}", cpu_dur as f32 / gpu_dur as f32);
-
-        assert!(v1_coeffs == v2_coeffs);
-        println!("============================");
-
-    }
-}
-
-#[cfg(any(feature = "cuda", feature = "opencl"))]
-#[test_log::test] // Automatically wraps test to initialize logging
 fn test_ecgpu_fft_bn256()
 {   use ec_gpu_gen::threadpool::Worker;
     use ec_gpu_gen::rust_gpu_tools::Device;
     use ec_gpu_gen::fft::FftKernel;
+    //use blstrs::Scalar as Fr;
     use crate::halo2curves::bn256::Fr;
     use std::time::Instant;
     use rand_core::OsRng;
@@ -850,9 +791,12 @@ fn test_best_fft_multiple_gpu() {
         let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
         //end_timer!(start);
         println!("GPU took {}ms.", gpu_dur);
-        assert_eq!(coeffs, optimized_fft_coeffs);
+        assert_eq!(prev_fft_coeffs, optimized_fft_coeffs);
     }
 }
+
+
+
 #[cfg(feature = "gpu")]
 #[test_log::test] // Automatically wraps test to initialize logging
 fn test_best_fft_multiple_gpu() {

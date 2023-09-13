@@ -290,60 +290,6 @@ pub fn gpu_fft<F: PrimeField + gpu::GpuName>(
     Ok(kern.radix_fft_many(coeffs, omegas, log_ns)?)
 }
 
-/// Config gpu fft kernel
-#[cfg(feature = "gpu")]
-pub fn create_fft_kernel<Scalar,G>(_log_d: usize, priority: bool) -> Option<gpu::MultiFFTKernel<Scalar,G>>
-where
-    G: FftGroup<Scalar>,
-    Scalar: Field,
-{
-
-    match gpu::MultiFFTKernel::create(priority) {
-        Ok(k) => {
-            info!("GPU FFT kernel instantiated!");
-            Some(k)
-        }
-        Err(e) => {
-            warn!("Cannot instantiate GPU FFT kernel! Error: {}", e);
-            None
-        }
-    }
-}
-
-/// Wrap `gpu_fft_multiple`
-#[cfg(feature = "gpu")]
-
-//pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
-
-//pub fn best_fft_cpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
-
-/// Wrap `gpu_fft_multiple`
-#[cfg(feature = "gpu")]
-pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
-    polys: &mut [&mut [G]],
-    omega: Scalar,
-    log_n: u32,
-) -> gpu::GPUResult<()> {
-
-    let d = 1 << log_n;
-
-    let mut now = Instant::now();
-    let mut kern: Option<LockedMultiFFTKernel<_,_>> = Some(LockedMultiFFTKernel::<_,_>::new(log_n as usize, false));
-    let create_kern_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
-    println!("create_kern took {}ms.", create_kern_dur);
-    
-    //now = Instant::now();  
-    if let Some(ref mut kern) = kern {
-        if kern
-            .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| k.fft_multiple(polys, &omega, log_n))
-            .is_ok()
-        {
-            //println!("gpu_fft_multiple_total took {}ms.", now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64);
-            return Ok(());
-        }
-    } 
-    Ok(())
-}
 
 fn log_msm_stats(stat_collector:MSMLoggingInfo)-> Result<(), Box<dyn Error>>
 {   
@@ -402,20 +348,6 @@ fn log_fft_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
 }
 
 
-/// Use multiple gpu fft
-/* 
-#[cfg(feature = "gpu")]
-pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
-    kern: &mut gpu::MultiFFTKernel<Scalar,G>,
-    polys: &mut [&mut [G]],
-    omega: &Scalar,
-    log_n: u32,
-) -> gpu::GPUResult<()> {
-    kern.fft_multiple(polys, omega, log_n)?;
-
-    Ok(())
-}
-*/
 
 
 /// Performs a radix-$2$ Fast-Fourier Transformation (FFT) on a vector of size
