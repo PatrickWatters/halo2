@@ -1,3 +1,4 @@
+#![allow(warnings)] 
 use ark_std::{end_timer, start_timer};
 
 use halo2_proofs::{

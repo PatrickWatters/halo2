@@ -24,7 +24,7 @@
 // Remove this once we update pasta_curves
 #![allow(unused_imports)]
 #![allow(clippy::derive_partial_eq_without_eq)]
-
+#![allow(warnings)] 
 pub mod arithmetic;
 pub use pairing;
 pub mod circuit;
