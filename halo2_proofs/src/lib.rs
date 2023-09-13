@@ -1,6 +1,6 @@
 //! # halo2_proofs
 #![allow(clippy::suspicious_arithmetic_impl)]
-
+#![allow(warnings)] 
 pub mod arithmetic;
 pub use pairing;
 pub mod circuit;
