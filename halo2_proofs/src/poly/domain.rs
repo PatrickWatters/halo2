@@ -576,6 +576,60 @@ pub fn gpu_fft_multiple<Scalar: Field, G: FftGroup<Scalar>>(
     Ok(())
 }
 */
+fn omega<F: PrimeField>(num_coeffs: usize) -> F {
+    // Compute omega, the 2^exp primitive root of unity
+    let exp = (num_coeffs as f32).log2().floor() as u32;
+    let mut omega = F::ROOT_OF_UNITY;
+    for _ in exp..F::S {
+        omega = omega.square();
+    }
+    omega
+}
+
+#[cfg(any(feature = "cuda", feature = "opencl"))]
+#[test_log::test] // Automatically wraps test to initialize logging
+fn test_ecgpu()
+{   use ec_gpu_gen::threadpool::Worker;
+    use ec_gpu_gen::rust_gpu_tools::Device;
+    use ec_gpu_gen::fft::FftKernel;
+    use blstrs::Scalar as Fr;
+    use std::time::Instant;
+    use rand_core::OsRng;
+
+    //fil_logger::maybe_init();
+    let mut rng = OsRng;
+
+    let worker = Worker::new();
+    let log_threads = worker.log_num_threads();
+    let devices = Device::all();
+    let programs = devices
+        .iter()
+        .map(|device| ec_gpu_gen::program!(device))
+        .collect::<Result<_, _>>()
+        .expect("Cannot create programs!");
+    let mut kern = FftKernel::<Fr>::create(programs).expect("Cannot initialize kernel!");
+
+    for log_d in 1..=20 {
+        let d = 1 << log_d;
+
+        let mut v1_coeffs = (0..d).map(|_| Fr::random(&mut rng)).collect::<Vec<_>>();
+        let v1_omega = omega::<Fr>(v1_coeffs.len());
+        let mut v2_coeffs = v1_coeffs.clone();
+        let v2_omega = v1_omega;
+
+        println!("Testing FFT for {} elements...", d);
+
+        let mut now = Instant::now();
+        kern.radix_fft_many(&mut [&mut v1_coeffs], &[v1_omega], &[log_d])
+            .expect("GPU FFT failed!");
+        let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("GPU took {}ms.", gpu_dur);
+
+    }
+}
+
+
+
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 #[test_log::test] // Automatically wraps test to initialize logging
