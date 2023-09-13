@@ -211,6 +211,7 @@ where
         println!("n={},num_devices={},chunk_size={}", n, num_devices, chunk_size);
 
         let result = Arc::new(RwLock::new(Ok(())));
+        println!("ceated arc");
 
         
         THREAD_POOL.scoped(|s| {
