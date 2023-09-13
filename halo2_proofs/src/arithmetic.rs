@@ -279,6 +279,8 @@ pub fn gpu_fft<F: PrimeField + gpu::GpuName>(
     omegas: &[F],
     log_ns: &[u32],
 ) -> gpu::GpuResult<()> {
+    println!("calling kern.radix_fft_many");
+
     Ok(kern.radix_fft_many(coeffs, omegas, log_ns)?)
 }
 
