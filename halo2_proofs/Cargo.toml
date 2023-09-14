@@ -141,6 +141,8 @@ required-features = ["dev-graph"]
 ec-gpu-gen = { path = "../ec-gpu-gen", version = "0.7.0" }
 rustversion = "1.0.6"
 blstrs = { version = "0.7.0", features = ["__private_bench"] }
+#halo2curves = { git = 'https://github.com/privacy-scaling-explorations/halo2curves', tag = "0.3.2" }
+
 halo2curves ={ path = "../../halo2curves", features = ["gpu"]}
 
 #ec-gpu-gen = { version = "0.7.0" }

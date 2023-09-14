@@ -8,7 +8,7 @@ use ff::Field;
 use fs2::FileExt;
 use group::prime::PrimeCurveAffine;
 use log::{debug, info, warn};
-
+use ec_gpu_gen::arithmetic::FftGroup;
 use crate::gpu::error::{GpuError, GpuResult};
 use crate::gpu::{CpuGpuMultiexpKernel, GpuName};
 
@@ -189,9 +189,10 @@ impl Drop for PriorityLock {
     }
 }
 
-fn create_fft_kernel<'a, F>(priority: bool) -> Option<(FftKernel<'a, F>, GPULock<'a>)>
+fn create_fft_kernel<'a,Scalar,G>(priority: bool) -> Option<(FftKernel<'a,Scalar,G>, GPULock<'a>)>
 where
-    F: Field + GpuName,
+    G: FftGroup<Scalar>,
+    Scalar: Field,
 {
     let lock = GPULock::lock();
     let programs = lock
@@ -246,9 +247,100 @@ where
     }
 }
 
-/// Wrap the kernel so that only a single one runs on the GPU at a time.
 macro_rules! locked_kernel {
-    ($kernel:ty, $func:ident, $name:expr, pub struct $class:ident<$lifetime:lifetime, $generic:ident>
+    ($kernel:ty, $func:ident, $name:expr, pub struct $class:ident<$lifetime:lifetime, $generic:ident,$generic1:ident>)
+    =>{
+        pub struct $class<'a,Scalar,G>
+        where
+            G: FftGroup<Scalar>,
+            Scalar: Field,
+        {
+            priority: bool,
+            kernel_and_lock: Option<($kernel, GPULock<'a>)>,
+        }
+
+        impl<'a,Scalar,G> $class<'a,Scalar,G>
+        where
+        G: FftGroup<Scalar>,
+        Scalar: Field,
+        {
+            pub fn new(priority: bool) -> Self {
+                Self {
+                    priority,
+                    kernel_and_lock: None,
+                }
+
+
+            }
+            /// Intialize a kernel.
+            ///
+            /// On OpenCL that also means that the kernel source is compiled.
+            fn init(&mut self) {
+                if self.kernel_and_lock.is_none() {
+                    PriorityLock::wait(self.priority);
+                    info!("GPU is available for {}!", $name);
+                    if let Some((kernel, lock)) = $func(self.priority) {
+                        self.kernel_and_lock = Some((kernel, lock));
+                    }
+                }
+            }
+
+            /// Free kernel resources early.
+            ///
+            /// When the locked kernel is dropped, it will free the resources automatically. In
+            /// case we are waiting for the GPU to be used, we free those resources early.
+            fn free(&mut self) {
+                if let Some(_) = self.kernel_and_lock.take() {
+                    warn!(
+                        "GPU acquired by a high priority process! Freeing up {} kernels...",
+                        $name
+                    );
+                }
+            }
+
+            /// Execute a function with the kernel.
+            ///
+            /// This function makes sure that only one things is run on the GPU at a time. It will
+            /// block until the GPU is available.
+            pub fn with<Fun, R>(&mut self, mut f: Fun) -> GpuResult<R>
+            where
+                Fun: FnMut(&mut $kernel) -> GpuResult<R>,
+            {
+                if let Ok(bellman_no_gpu) = std::env::var("BELLMAN_NO_GPU") {
+                    if bellman_no_gpu != "0" {
+                        return Err(GpuError::GpuDisabled);
+                    }
+                }
+
+                loop {
+                    // `init()` is a possibly blocking call that waits until the GPU is available.
+                    self.init();
+                    if let Some((ref mut k, ref _gpu_lock)) = self.kernel_and_lock {
+                        match f(k) {
+                            // Re-trying to run on the GPU is the core of this loop, all other
+                            // cases abort the loop.
+                            Err(GpuError::EcGpu(EcError::Aborted)) => {
+                                self.free();
+                            }
+                            Err(e) => {
+                                warn!("GPU {} failed! Falling back to CPU... Error: {}", $name, e);
+                                return Err(e);
+                            }
+                            Ok(v) => return Ok(v),
+                        }
+                    } else {
+                        return Err(GpuError::KernelUninitialized);
+                    }
+                }
+            }
+        }
+    };
+ }
+
+
+/// Wrap the kernel so that only a single one runs on the GPU at a time.
+macro_rules! locked_kernel1 {
+    ($kernel:ty, $func:ident, $name:expr, pub struct $class:ident<$lifetime:lifetime, $generic:ident,$generic1:ident>
         where $(
             $bound:ty: $boundvalue:tt $(+ $morebounds:tt )*,
         )+
@@ -342,12 +434,14 @@ macro_rules! locked_kernel {
 }
 
 locked_kernel!(
-    FftKernel<'a, F>,
+    FftKernel<'a,Scalar,G>,
     create_fft_kernel,
     "FFT",
-    pub struct LockedFftKernel<'a, F> where F: Field + GpuName,
+    pub struct LockedFftKernel<'a, Scalar,G>
+    
 );
-locked_kernel!(
+
+/*locked_kernel!(
     CpuGpuMultiexpKernel<'a, G>,
     create_multiexp_kernel,
     "Multiexp",
@@ -355,3 +449,4 @@ locked_kernel!(
     where
         G: PrimeCurveAffine + GpuName,
 );
+*/

@@ -64,6 +64,8 @@ pub mod multiexp_cpu;
 /// Helpers for multithreaded code.
 pub mod threadpool;
 
+pub mod arithmetic;
+
 /// Re-export rust-gpu-tools as things like [`rust_gpu_tools::Device`] might be needed.
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 pub use rust_gpu_tools;

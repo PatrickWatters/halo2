@@ -221,24 +221,24 @@ pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Cu
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 use crate::gpu;
 use ec_gpu_gen::threadpool::Worker;
-use crate::gpu::LockedFftKernel;
 use crate::halo2curves::bn256::Fr;
 use ec_gpu_gen::fft::FftKernel;
 use ec_gpu_gen::fft_cpu;
+use crate::gpu::LockedFftKernel;
 
-pub fn best_fft_gpu<F: PrimeField + gpu::GpuName>(
+pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
     //kern: &mut Option<gpu::LockedFftKernel<F>>,
     //worker: &Worker,
-    coeffs: &mut [&mut [F]],
-    omegas: &[F],
-    log_ns: &[u32],
+    coeffs: &mut [&mut [G]],
+    omegas: Scalar,
+    log_ns: u32,
 )-> gpu::GpuResult<()>{
 
     let mut kern = Some(LockedFftKernel::new(false));
 
     if let Some(ref mut kern) = kern {
         if kern
-            .with(|k: &mut FftKernel<F>| gpu_fft(k, coeffs, omegas, log_ns))
+            .with(|k: &mut FftKernel<Scalar,G>| gpu_fft(k, coeffs, &[omegas], &[log_ns]))
             .is_ok()
         {
             println!("got response");
@@ -247,30 +247,16 @@ pub fn best_fft_gpu<F: PrimeField + gpu::GpuName>(
         }
     }
 
-    let worker = ec_gpu_gen::threadpool::Worker::new();
-    let log_cpus = worker.log_num_threads();
-    for ((a, omega), log_n) in coeffs.iter_mut().zip(omegas.iter()).zip(log_ns.iter()) {
-        if *log_n <= log_cpus {
-            println!("cpu serial_fft");
-
-            fft_cpu::serial_fft::<F>(*a, omega, *log_n);
-        } else {
-            println!("cpu parallel");
-
-            fft_cpu::parallel_fft::<F>(*a, &worker, omega, *log_n, log_cpus);
-        }
-    }
   
     Ok(())
-
-
 }
 
+
 #[cfg(any(feature = "cuda", feature = "opencl"))]
-pub fn gpu_fft<F: PrimeField + gpu::GpuName>(
-    kern: &mut FftKernel<F>,
-    coeffs: &mut [&mut [F]],
-    omegas: &[F],
+pub fn gpu_fft<Scalar: Field, G: FftGroup<Scalar>>(
+    kern: &mut FftKernel<Scalar,G>,
+    coeffs: &mut [&mut [G]],
+    omegas: &[Scalar],
     log_ns: &[u32],
 ) -> gpu::GpuResult<()> {
     println!("calling kern.radix_fft_many");
