@@ -261,7 +261,6 @@ impl SourceBuilder {
         let mut config = self.add_field::<F>();
     
         let fft = Fft::<F>(PhantomData);
-        println!("fft name: {}", fft.name());
         
         config.ffts.insert(Box::new(fft));
         config

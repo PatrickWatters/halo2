@@ -732,7 +732,7 @@ fn test_best_fft_multiple_gpu() {
         let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
         //end_timer!(start);
         println!("GPU took {}ms.", gpu_dur);
-        assert_eq!(coeffs, optimized_fft_coeffs);
+        assert_eq!(prev_fft_coeffs, optimized_fft_coeffs);
     }
 }
 #[cfg(feature = "gpu")]
