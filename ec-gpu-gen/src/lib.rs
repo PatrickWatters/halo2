@@ -80,6 +80,7 @@ pub use source::{generate, SourceBuilder};
 pub trait FftGroup<Scalar: Field>:
     Copy + Send + Sync + 'static + GroupOpsOwned + ScalarMulOwned<Scalar>
 {
+    
 }
 
 impl<T, Scalar> FftGroup<Scalar> for T

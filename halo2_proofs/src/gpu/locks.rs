@@ -192,7 +192,7 @@ impl Drop for PriorityLock {
 
 fn create_fft_kernel<'a,Scalar,G>(priority: bool) -> Option<(FftKernel<'a,Scalar,G>, GPULock<'a>)>
 where
-    G: FftGroup<Scalar>,
+    G: FftGroup<Scalar>+GpuName,
     Scalar: Field,
 
 {
@@ -313,7 +313,7 @@ macro_rules! locked_kernel {
 // Define the struct outside of the macro
 pub struct LockedFftKernel<'a, Scalar, G>
 where
-    G: FftGroup<Scalar>,
+    G: FftGroup<Scalar>+GpuName,
     Scalar: Field,
 {
     priority: bool,
@@ -322,7 +322,7 @@ where
 
 impl<'a, Scalar, G> LockedFftKernel<'a, Scalar, G>
 where
-    G: FftGroup<Scalar>,
+    G: FftGroup<Scalar>+GpuName,
     Scalar: Field,
 {
     pub fn new(priority: bool) -> Self {

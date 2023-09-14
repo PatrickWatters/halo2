@@ -17,7 +17,7 @@ const MAX_LOG2_LOCAL_WORK_SIZE: u32 = 7; // 128
 /// FFT kernel for a single GPU.
 pub struct SingleFftKernel<'a, Scalar,G>
 where
-    G: FftGroup<Scalar>,
+    G: FftGroup<Scalar>+GpuName,
     Scalar: Field,
 {
     program: Program,
@@ -32,7 +32,7 @@ where
 
 impl<'a, Scalar,G>SingleFftKernel<'a, Scalar,G>
 where
-    G: FftGroup<Scalar>,
+    G: FftGroup<Scalar>+GpuName,
     Scalar: Field,
 {
     /// Create a new FFT instance for the given device.
@@ -114,8 +114,8 @@ where
                 let n = 1u32 << log_n;
                 let local_work_size = 1 << cmp::min(deg - 1, MAX_LOG2_LOCAL_WORK_SIZE);
                 let global_work_size = n >> deg;
-                //let kernel_name = format!("{}_radix_fft", G::name());
-                let kernel_name = format!("radix_fft");
+                let kernel_name = format!("{}_radix_fft", G::name());
+                //let kernel_name = format!("radix_fft");
                 
                 //let kernel_name = format!("{}_radix_fft", "blstrs__scalar__Scalar");
 
@@ -161,7 +161,7 @@ where
 /// One FFT kernel for each GPU available.
 pub struct FftKernel<'a, Scalar,G>
 where
-    G: FftGroup<Scalar>,
+    G: FftGroup<Scalar>+GpuName,
     Scalar: Field,
 {
     kernels: Vec<SingleFftKernel<'a, Scalar,G>>,
@@ -169,7 +169,7 @@ where
 
 impl<'a, Scalar,G> FftKernel<'a, Scalar,G>
 where
-    G: FftGroup<Scalar>,
+    G: FftGroup<Scalar>+GpuName,
     Scalar: Field,
 {
     /// Create new kernels, one for each given device.

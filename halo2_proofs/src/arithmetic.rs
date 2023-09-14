@@ -228,7 +228,7 @@ pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Cu
 
 use crate::gpu::{GpuError,LockedFftKernel};
 
-pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
+pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>+GpuName>(
     coeffs: &mut [&mut [G]],
     omegas: &[Scalar],
     log_ns: &[u32],
@@ -294,7 +294,7 @@ pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(
 }
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
-pub fn gpu_fft<Scalar: Field, G: FftGroup<Scalar>>(
+pub fn gpu_fft<Scalar: Field, G: FftGroup<Scalar>+GpuName>(
     kern: &mut FftKernel<Scalar,G>,
     coeffs: &mut [&mut [G]],
     omegas: &[Scalar],
@@ -580,10 +580,10 @@ pub fn g_to_lagrange<C: CurveAffine>(g_projective: Vec<C::Curve>, k: u32) -> Vec
     //#[cfg(any(feature = "cuda", feature = "opencl"))]
     //best_fft_gpu(&mut [&mut g_lagrange_projective], omega_inv, k).unwrap();
 
-    best_fft_gpu(&mut [&mut g_lagrange_projective], &[omega_inv], &[k]).unwrap();
+    //best_fft_gpu(&mut [&mut g_lagrange_projective], &[omega_inv], &[k]).unwrap();
 
     //#[cfg(feature = "cpu")]
-    // best_fft_cpu(&mut g_lagrange_projective, omega_inv, k);
+    best_fft_cpu(&mut g_lagrange_projective, omega_inv, k);
     
 
     parallelize(&mut g_lagrange_projective, |g, _| {
