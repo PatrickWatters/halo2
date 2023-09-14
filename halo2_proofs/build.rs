@@ -19,6 +19,8 @@ fn gpu_kernel() {
     //use halo2curves::bn256::{Fr, Fq, G1Affine, G2Affine};
     use blstrs::{Fp, Fp2, G1Affine, G2Affine, Scalar};
     use ec_gpu_gen::SourceBuilder;
+    use halo2curves::ff::Field;
+
 
     let source_builder = SourceBuilder::new()
         .add_fft::<Fr>();

@@ -117,7 +117,7 @@ Scalar: Field,
                 let n = 1u32 << log_n;
                 let local_work_size = 1 << cmp::min(deg - 1, MAX_LOG2_LOCAL_WORK_SIZE);
                 let global_work_size = n >> deg;
-                //let kernel_name = format!("{}_radix_fft", F::name());
+                //let kernel_name = format!("{}_radix_fft", G::name());
                 let kernel_name = format!("radix_fft");
 
                 //let kernel_name = format!("{}_radix_fft", "blstrs__scalar__Scalar");
