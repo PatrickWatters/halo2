@@ -59,13 +59,13 @@ where
         let closures = program_closures!(|program, input: &mut [G]| -> EcResult<()> {
             let n = 1 << log_n;
 
-            println!("Number of elements={}", n);
+            //println!("Number of elements={}", n);
 
             // All usages are safe as the buffers are initialized from either the host or the GPU
             // before they are read.
             let mut src_buffer = unsafe { program.create_buffer::<G>(n)? };
             let mut dst_buffer = unsafe { program.create_buffer::<G>(n)? };
-            println!("bufers created");
+            //println!("bufers created");
 
             // The precalculated values pq` and `omegas` are valid for radix degrees up to `max_deg`
             let max_deg = cmp::min(MAX_LOG2_RADIX, log_n);
@@ -82,7 +82,7 @@ where
                     pq[i].mul_assign(&twiddle);
                 }
             }
-            println!("Precalculate");
+            //println!("Precalculate");
 
             let pq_buffer = program.create_buffer_from_slice(&pq)?;
 
@@ -93,7 +93,7 @@ where
                 omegas[i] = omegas[i - 1].pow_vartime([2u64]);
             }
             let omegas_buffer = program.create_buffer_from_slice(&omegas)?;
-            println!("omegas {}",&omegas.len());
+            //println!("omegas {}",&omegas.len());
 
             program.write_from_buffer(&mut src_buffer, &*input)?;
             // Specifies log2 of `p`, (http://www.bealto.com/gpu-fft_group-1.html)
@@ -127,7 +127,7 @@ where
                     local_work_size as usize,
                 )?;
 
-                println!("kernel created");
+               // println!("kernel created");
 
                 kernel
                     .arg(&src_buffer)
@@ -144,15 +144,15 @@ where
                 log_p += deg;
                 std::mem::swap(&mut src_buffer, &mut dst_buffer);
             }
-            println!("set kernel arguents");
+            //println!("set kernel arguents");
 
             program.read_into_buffer(&src_buffer, input)?;
            
-            println!("read_into_buffer");
+           // println!("read_into_buffer");
 
             Ok(())
         });
-        println!("starting program.run ");
+       // println!("starting program.run ");
 
         self.program.run(closures, input)
     }
@@ -238,7 +238,7 @@ where
         omegas: &[Scalar],
         log_ns: &[u32],
     ) -> EcResult<()> {
-        println!("inside radix_fft_many");
+        //println!("inside radix_fft_many");
 
         let n = inputs.len();
         let num_devices = self.kernels.len();
@@ -246,7 +246,7 @@ where
         println!("n={},num_devices={},chunk_size={}", n, num_devices, chunk_size);
 
         let result = Arc::new(RwLock::new(Ok(())));
-        println!("ceated arc");
+        //println!("ceated arc");
 
         
         THREAD_POOL.scoped(|s| {

@@ -242,7 +242,7 @@ pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>+GpuName>(
             .with(|k: &mut FftKernel<Scalar,G>| gpu_fft(k, coeffs, omegas, log_ns))
             .is_ok()
         {
-            println!("got response");
+            //println!("got response");
 
             return Ok(());
         }
@@ -270,7 +270,7 @@ pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>+GpuName>(
             .with(|k: &mut FftKernel<Scalar,G>| gpu_fft(k, coeffs, omegas, log_ns))
             .is_ok()
         {
-            println!("got response");
+            //println!("got response");
 
             return Ok(());
         }
@@ -328,7 +328,7 @@ pub fn gpu_fft<Scalar: Field, G: FftGroup<Scalar>+GpuName>(
     omegas: &[Scalar],
     log_ns: &[u32],
 ) -> gpu::GpuResult<()> {
-    println!("calling kern.radix_fft_many");
+    //println!("calling kern.radix_fft_many");
 
     Ok(kern.radix_fft_many(coeffs, omegas, log_ns)?)
 }
