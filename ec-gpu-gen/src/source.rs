@@ -116,7 +116,7 @@ fn field_source<F: GpuField>(limb: Limb32Or64) -> String {
 impl<F: GpuField> NameAndSource for Field<F> {
     fn name(&self) -> String {
         match self {
-            Self::Field(_) => F::name(),
+            Self::Field(_) => format!("radix_fft"),
             Self::SubField(name) => name.to_string(),
         }
     }
@@ -127,10 +127,10 @@ impl<F: GpuField> NameAndSource for Field<F> {
                 // If it's an extension field.
                 if let Some(sub_field_name) = F::sub_field_name() {
                     String::from(FIELD2_SRC)
-                        .replace("FIELD2", &F::name())
+                        .replace("FIELD2", &format!("radix_fft"))
                         .replace("FIELD", &sub_field_name)
                 } else {
-                    field_source::<F>(limb).replace("FIELD", &F::name())
+                    field_source::<F>(limb).replace("FIELD", &format!("radix_fft"))
                 }
             }
             Self::SubField(sub_field_name) => {
@@ -149,11 +149,11 @@ struct Fft<F: GpuName>(PhantomData<F>);
 
 impl<F: GpuName> NameAndSource for Fft<F> {
     fn name(&self) -> String {
-        F::name()
+        format!("radix_fft")
     }
 
     fn source(&self, _limb: Limb32Or64) -> String {
-        String::from(FFT_SRC).replace("FIELD", &F::name())
+        String::from(FFT_SRC).replace("FIELD", &format!("radix_fft"))
     }
 }
 
@@ -181,7 +181,7 @@ impl<P: GpuName, F: GpuName, Exp: GpuName> NameAndSource for Multiexp<P, F, Exp>
 
     fn source(&self, _limb: Limb32Or64) -> String {
         let ec = String::from(EC_SRC)
-            .replace("FIELD", &F::name())
+            .replace("FIELD", &format!("radix_fft"))
             .replace("POINT", &P::name());
         let multiexp = String::from(MULTIEXP_SRC)
             .replace("POINT", &P::name())

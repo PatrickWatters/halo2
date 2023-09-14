@@ -2,6 +2,7 @@
 //! field and polynomial arithmetic.
 
 use super::multicore;
+use ec_gpu::GpuName;
 pub use ff::Field;
 
 use group::{
@@ -32,6 +33,7 @@ pub use halo2curves::{CurveAffine, CurveExt};
 /// This represents an element of a group with basic operations that can be
 /// performed. This allows an FFT implementation (for example) to operate
 /// generically over either a field or elliptic curve group.
+
 pub trait FftGroup<Scalar: Field>:
     Copy + Send + Sync + 'static + GroupOpsOwned + ScalarMulOwned<Scalar>
 {
@@ -40,9 +42,12 @@ pub trait FftGroup<Scalar: Field>:
 impl<T, Scalar> FftGroup<Scalar> for T
 where
     Scalar: Field,
-    T: Copy + Send + Sync + 'static + GroupOpsOwned + ScalarMulOwned<Scalar>,
+    T: Copy + Send + Sync + 'static + GroupOpsOwned + ScalarMulOwned<Scalar>
 {
+    
 }
+
+
 
 fn multiexp_serial<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C], acc: &mut C::Curve) {
     let coeffs: Vec<_> = coeffs.iter().map(|a| a.to_repr()).collect();

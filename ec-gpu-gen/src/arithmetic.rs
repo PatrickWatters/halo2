@@ -2,8 +2,10 @@
 pub use ff::Field;
 use group::GroupOpsOwned;
 use group::ScalarMulOwned;
+
+/// doc
 pub trait FftGroup<Scalar: Field>:
-    Copy + Send + Sync + 'static + GroupOpsOwned + ScalarMulOwned<Scalar>
+    Copy + Send + Sync + 'static + GroupOpsOwned + ScalarMulOwned<Scalar> 
 {
 }
 
@@ -12,4 +14,5 @@ where
     Scalar: Field,
     T: Copy + Send + Sync + 'static + GroupOpsOwned + ScalarMulOwned<Scalar>,
 {
+    
 }
