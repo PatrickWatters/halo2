@@ -1,5 +1,5 @@
 
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "cuda", feature = "opencl"))]
 use crate::arithmetic::best_fft_gpu;
 
 use crate::arithmetic::{

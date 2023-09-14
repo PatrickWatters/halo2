@@ -22,6 +22,3 @@ mod helpers;
 pub use helpers::SerdeFormat;
 
 pub use blstrs;
-#[cfg(feature = "gpu")]
-#[macro_use]
-extern crate lazy_static;

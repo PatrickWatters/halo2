@@ -2,13 +2,13 @@
 //! field and polynomial arithmetic.
 
 use super::multicore;
+use ec_gpu::GpuName;
 pub use ff::Field;
 
 use group::{
     ff::{BatchInvert, PrimeField},
     Curve, Group, GroupOpsOwned, ScalarMulOwned,
 };
-
 
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
@@ -18,14 +18,6 @@ use crate::gpu;
 use ec_gpu_gen::fft_cpu;
 use ec_gpu_gen::threadpool::Worker;
 
-#[cfg(feature = "gpu")]
-use crate::gpu;
-#[cfg(feature = "gpu")]
-use crate::gpu::LockedMultiFFTKernel;
-#[cfg(feature = "gpu")]
-use::halo2curves::bn256::G1;
-#[cfg(feature = "gpu")]
-use log::{info, warn};
 use ark_std::{end_timer, start_timer};
 use ark_std::time::Instant;
 use std::error::Error;
@@ -230,27 +222,24 @@ pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Cu
 
         acc
     }
-
-    
-
-
 }
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
-use crate::gpu::LockedFftKernel;
 
-pub fn best_fft_gpu<F: PrimeField + gpu::GpuName>(
-    kern: &mut Option<gpu::LockedFftKernel<F>>,
-    worker: &Worker,
-    coeffs: &mut [&mut [F]],
-    omegas: &[F],
+use crate::gpu::{GpuError,LockedFftKernel};
+
+pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
+    coeffs: &mut [&mut [G]],
+    omegas: &[Scalar],
     log_ns: &[u32],
 )-> gpu::GpuResult<()>{
     #[cfg(any(feature = "cuda", feature = "opencl"))]
 
+    let mut kern = Some(LockedFftKernel::new(false));
+
     if let Some(ref mut kern) = kern {
         if kern
-            .with(|k: &mut FftKernel<F>| gpu_fft(k, coeffs, omegas, log_ns))
+            .with(|k: &mut FftKernel<Scalar,G>| gpu_fft(k, coeffs, omegas, log_ns))
             .is_ok()
         {
             println!("got response");
@@ -264,20 +253,20 @@ pub fn best_fft_gpu<F: PrimeField + gpu::GpuName>(
 
 }
 
-
-#[cfg(any(feature = "cuda", feature = "opencl"))]
-pub fn best_fft<F: PrimeField + gpu::GpuName>(
-    kern: &mut Option<gpu::LockedFftKernel<F>>,
+#[cfg(any(feature = "cuda", feature = "gpu"))]
+pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(
     worker: &Worker,
-    coeffs: &mut [&mut [F]],
-    omegas: &[F],
+    coeffs: &mut [&mut [G]],
+    omegas: &[G],
     log_ns: &[u32],
 )-> gpu::GpuResult<()>{
     #[cfg(any(feature = "cuda", feature = "opencl"))]
 
+    let mut kern = Some(LockedFftKernel::new(false));
+
     if let Some(ref mut kern) = kern {
         if kern
-            .with(|k: &mut FftKernel<F>| gpu_fft(k, coeffs, omegas, log_ns))
+            .with(|k: &mut FftKernel<G>| gpu_fft(k, coeffs, omegas, log_ns))
             .is_ok()
         {
             println!("got response");
@@ -305,10 +294,10 @@ pub fn best_fft<F: PrimeField + gpu::GpuName>(
 }
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
-pub fn gpu_fft<F: PrimeField + gpu::GpuName>(
-    kern: &mut FftKernel<F>,
-    coeffs: &mut [&mut [F]],
-    omegas: &[F],
+pub fn gpu_fft<Scalar: Field, G: FftGroup<Scalar>>(
+    kern: &mut FftKernel<Scalar,G>,
+    coeffs: &mut [&mut [G]],
+    omegas: &[Scalar],
     log_ns: &[u32],
 ) -> gpu::GpuResult<()> {
     println!("calling kern.radix_fft_many");
@@ -577,10 +566,8 @@ pub fn recursive_butterfly_arithmetic<Scalar: Field, G: FftGroup<Scalar>>(
 
 /// Convert coefficient bases group elements to lagrange basis by inverse FFT.
 pub fn g_to_lagrange<C: CurveAffine>(g_projective: Vec<C::Curve>, k: u32) -> Vec<C> {
-    #[cfg(feature = "gpu")]
-    use crate::gpu::LockedMultiFFTKernel;
-    #[cfg(feature = "gpu")]
-    use crate::arithmetic::best_fft_gpu;
+    //#[cfg(any(feature = "cuda", feature = "opencl"))]
+    //use crate::arithmetic::best_fft_gpu;
 
     let n_inv = C::Scalar::TWO_INV.pow_vartime(&[k as u64, 0, 0, 0]);
     let mut omega_inv = C::Scalar::ROOT_OF_UNITY_INV;
@@ -590,11 +577,13 @@ pub fn g_to_lagrange<C: CurveAffine>(g_projective: Vec<C::Curve>, k: u32) -> Vec
 
     let mut g_lagrange_projective = g_projective;
 
-    #[cfg(feature = "gpu")]
-    best_fft_gpu(&mut [&mut g_lagrange_projective], omega_inv, k).unwrap();
+    //#[cfg(any(feature = "cuda", feature = "opencl"))]
+    //best_fft_gpu(&mut [&mut g_lagrange_projective], omega_inv, k).unwrap();
 
-    #[cfg(feature = "cpu")]
-     best_fft_cpu(&mut g_lagrange_projective, omega_inv, k);
+    best_fft_gpu(&mut [&mut g_lagrange_projective], &[omega_inv], &[k]).unwrap();
+
+    //#[cfg(feature = "cpu")]
+    // best_fft_cpu(&mut g_lagrange_projective, omega_inv, k);
     
 
     parallelize(&mut g_lagrange_projective, |g, _| {

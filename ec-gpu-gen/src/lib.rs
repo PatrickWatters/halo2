@@ -64,9 +64,27 @@ pub mod multiexp_cpu;
 /// Helpers for multithreaded code.
 pub mod threadpool;
 
+use ff::Field;
+use group::{GroupOpsOwned, ScalarMulOwned};
 /// Re-export rust-gpu-tools as things like [`rust_gpu_tools::Device`] might be needed.
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 pub use rust_gpu_tools;
 
 pub use error::{EcError, EcResult};
 pub use source::{generate, SourceBuilder};
+
+
+/// This represents an element of a group with basic operations that can be
+/// performed. This allows an FFT implementation (for example) to operate
+/// generically over either a field or elliptic curve group.
+pub trait FftGroup<Scalar: Field>:
+    Copy + Send + Sync + 'static + GroupOpsOwned + ScalarMulOwned<Scalar>
+{
+}
+
+impl<T, Scalar> FftGroup<Scalar> for T
+where
+    Scalar: Field,
+    T: Copy + Send + Sync + 'static + GroupOpsOwned + ScalarMulOwned<Scalar>,
+{
+}

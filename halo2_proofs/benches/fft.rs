@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate criterion;
-#[cfg(feature = "gpu")]
+#[cfg(any(feature = "cuda", feature = "opencl"))]
 use crate::arithmetic::best_fft_gpu;
 
 #[cfg(feature = "cpu")]
@@ -21,7 +21,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             let omega = Fp::random(OsRng); // would be weird if this mattered
             b.iter(|| {
 
-                #[cfg(feature = "gpu")]
+                #[cfg(any(feature = "cuda", feature = "gpu"))]
                 best_fft_gpu(&mut [&mut a], omega, k).unwrap();
         
                 #[cfg(feature = "cpu")]
