@@ -22,6 +22,8 @@ pub use self::nogpu::*;
 // This is a hack, so that the same traits can be used for the GPU and non-GPU code path.
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 pub use ec_gpu::GpuName;
+
+
 #[cfg(not(any(feature = "cuda", feature = "opencl")))]
 pub trait GpuName {}
 #[cfg(not(any(feature = "cuda", feature = "opencl")))]

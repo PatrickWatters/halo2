@@ -696,8 +696,10 @@ fn test_best_fft_multiple_gpu() {
     use crate::poly::EvaluationDomain;
     use rand_core::OsRng;
     use crate::arithmetic::best_fft_cpu;
-    use crate::arithmetic::best_fft_gpu;
+    use crate::arithmetic::best_fft;
     let worker = ec_gpu_gen::threadpool::Worker::new();
+    use crate::gpu::LockedFftKernel;
+    let mut kern = Some(LockedFftKernel::new(false));
 
     for k in 14..=15 {
         let rng = OsRng;
@@ -723,7 +725,9 @@ fn test_best_fft_multiple_gpu() {
 
         now = std::time::Instant::now();
 
-        best_fft_gpu(
+
+        best_fft(
+            &mut kern,
             &mut [&mut optimized_fft_coeffs],
             &[domain.get_omega()],
            &[k as u32],
