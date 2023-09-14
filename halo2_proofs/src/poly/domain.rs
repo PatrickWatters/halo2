@@ -701,7 +701,7 @@ fn test_best_fft_multiple_gpu() {
     use crate::gpu::LockedFftKernel;
     let mut kern = Some(LockedFftKernel::new(false));
 
-    for k in 14..=15 {
+    for k in 18..=27 {
         let rng = OsRng;
         // polynomial degree n = 2^k
         let n = 1u64 << k;
