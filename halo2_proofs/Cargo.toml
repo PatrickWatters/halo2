@@ -114,7 +114,7 @@ tracing-subscriber = {version = "0.3", default-features = false, features = ["en
 getrandom = { version = "0.2", features = ["js"] }
 
 [features]
-default = ["batch","opencl"]
+default = ["batch","cuda"]
 cuda = ["ec-gpu-gen/cuda", "fs2","blstrs/gpu"]
 opencl = ["ec-gpu-gen/opencl", "fs2","blstrs/gpu"]
 dev-graph = ["plotters", "tabbycat"]
