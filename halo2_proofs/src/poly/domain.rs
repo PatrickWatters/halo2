@@ -595,6 +595,8 @@ use ec_gpu_gen::multiexp_cpu::QueryDensity;
 use group::prime::PrimeCurveAffine;
 use ec_gpu::GpuName;
 use ec_gpu_gen::multiexp_cpu::SourceBuilder;
+
+
 fn multiexp_gpu<Q, D, G, S>(
     pool: &Worker,
     bases: S,
@@ -612,7 +614,7 @@ where
     let (bss, skip) = bases.get();
     kern.multiexp(pool, bss, exps, skip).map_err(Into::into)
 }
-
+/*
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 #[test_log::test] // Automatically wraps test to initialize logging
 fn test_ecgpu_msm_bls()
@@ -682,68 +684,83 @@ fn test_ecgpu_msm_bls()
 
     }
 }
-
-
-
+*/
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 #[test_log::test] // Automatically wraps test to initialize logging
-fn test_ecgpu_fft_bls()
+fn test_ecgpu_msm_bn254()
 {   use ec_gpu_gen::threadpool::Worker;
     use ec_gpu_gen::rust_gpu_tools::Device;
-    use ec_gpu_gen::fft::FftKernel;
-    use blstrs::Scalar as Fr;
+    //use blstrs::Bls12;
+    use halo2curves::bn256::Bn256;
+    use ec_gpu_gen::multiexp::MultiexpKernel;
+    use ec_gpu_gen::multiexp_cpu::multiexp_cpu;
     use std::time::Instant;
     use rand_core::OsRng;
-    use ec_gpu_gen::fft_cpu::serial_fft;
-    use ec_gpu_gen::fft_cpu::parallel_fft;
+    use std::sync::Arc;
+    use ec_gpu_gen::program;
+    //use pairing::Engine;
+    use group::Curve;
+    use ec_gpu_gen::multiexp_cpu::FullDensity;
+    use crate::halo2curves::pairing::Engine;
+    use crate::halo2curves::bn256::Fr;
 
     //fil_logger::maybe_init();
-    let mut rng = OsRng;
-
-    let worker = Worker::new();
-    let log_threads = worker.log_num_threads();
+    const MAX_LOG_D: usize = 10;
+    const START_LOG_D: usize = 10;
     let devices = Device::all();
     let programs = devices
         .iter()
-        .map(|device| ec_gpu_gen::program!(device))
+        .map(|device| program!(device))
         .collect::<Result<_, _>>()
         .expect("Cannot create programs!");
-    let mut kern = FftKernel::<Fr>::create(programs).expect("Cannot initialize kernel!");
+    let mut kern = MultiexpKernel::<<Bn256 as Engine>::G1Affine>::create(programs, &devices)
+        .expect("Cannot initialize kernel!");
+    let pool = Worker::new();
 
-    for log_d in 1..=20 {
-        let d = 1 << log_d;
+    let mut rng = OsRng;
+    
 
-        let mut v1_coeffs = (0..d).map(|_| Fr::random(&mut rng)).collect::<Vec<_>>();
-        let v1_omega = omega::<Fr>(v1_coeffs.len());
-        let mut v2_coeffs = v1_coeffs.clone();
-        let v2_omega = v1_omega;
+    let mut bases = (0..(1 << START_LOG_D))
+        .map(|_| <Bn256 as Engine>::G1::random(&mut rng).to_affine())
+        .collect::<Vec<_>>();
 
-        println!("Testing FFT for {} elements...", d);
+    for log_d in START_LOG_D..=MAX_LOG_D {
+        let g = Arc::new(bases.clone());
+
+        let samples = 1 << log_d;
+        println!("Testing Multiexp for {} elements...", samples);
+
+        let v = Arc::new(
+            (0..samples)
+                .map(|_| Fr::random(&mut rng).to_repr())
+                .collect::<Vec<_>>(),
+        );
 
         let mut now = Instant::now();
-        kern.radix_fft(&mut v1_coeffs, &v1_omega, log_d).expect("GPU FFT failed!");
-
-       // kern.radix_fft_many(&mut [&mut v1_coeffs], &[v1_omega], &[log_d])
-       //     .expect("GPU FFT failed!");
+        let gpu = multiexp_gpu(&pool, (g.clone(), 0), FullDensity, v.clone(), &mut kern).unwrap();
         let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
         println!("GPU took {}ms.", gpu_dur);
 
         now = Instant::now();
-        if log_d <= log_threads {
-            serial_fft::<Fr>(&mut v2_coeffs, &v2_omega, log_d);
-        } else {
-            parallel_fft::<Fr>(&mut v2_coeffs, &worker, &v2_omega, log_d, log_threads);
-        }
+        let cpu = multiexp_cpu::<_, _, _, Bn256, _>(&pool, (g.clone(), 0), FullDensity, v.clone())
+            .wait()
+            .unwrap();
         let cpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
-        println!("CPU ({} cores) took {}ms.", 1 << log_threads, cpu_dur);
+        println!("CPU took {}ms.", cpu_dur);
 
         println!("Speedup: x{}", cpu_dur as f32 / gpu_dur as f32);
 
-        assert!(v1_coeffs == v2_coeffs);
+        assert_eq!(cpu, gpu);
+
         println!("============================");
+
+        bases = [bases.clone(), bases.clone()].concat();
 
     }
 }
+
+
+
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 #[test_log::test] // Automatically wraps test to initialize logging
@@ -806,6 +823,67 @@ fn test_ecgpu_fft_bn256()
     }
 }
 
+
+
+#[cfg(any(feature = "cuda", feature = "opencl"))]
+#[test_log::test] // Automatically wraps test to initialize logging
+fn test_ecgpu_fft_bls()
+{   use ec_gpu_gen::threadpool::Worker;
+    use ec_gpu_gen::rust_gpu_tools::Device;
+    use ec_gpu_gen::fft::FftKernel;
+    use blstrs::Scalar as Fr;
+    use std::time::Instant;
+    use rand_core::OsRng;
+    use ec_gpu_gen::fft_cpu::serial_fft;
+    use ec_gpu_gen::fft_cpu::parallel_fft;
+
+    //fil_logger::maybe_init();
+    let mut rng = OsRng;
+
+    let worker = Worker::new();
+    let log_threads = worker.log_num_threads();
+    let devices = Device::all();
+    let programs = devices
+        .iter()
+        .map(|device| ec_gpu_gen::program!(device))
+        .collect::<Result<_, _>>()
+        .expect("Cannot create programs!");
+    let mut kern = FftKernel::<Fr>::create(programs).expect("Cannot initialize kernel!");
+
+    for log_d in 1..=20 {
+        let d = 1 << log_d;
+
+        let mut v1_coeffs = (0..d).map(|_| Fr::random(&mut rng)).collect::<Vec<_>>();
+        let v1_omega = omega::<Fr>(v1_coeffs.len());
+        let mut v2_coeffs = v1_coeffs.clone();
+        let v2_omega = v1_omega;
+
+        println!("Testing FFT for {} elements...", d);
+
+        let mut now = Instant::now();
+        kern.radix_fft(&mut v1_coeffs, &v1_omega, log_d).expect("GPU FFT failed!");
+
+       // kern.radix_fft_many(&mut [&mut v1_coeffs], &[v1_omega], &[log_d])
+       //     .expect("GPU FFT failed!");
+        let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("GPU took {}ms.", gpu_dur);
+
+        now = Instant::now();
+        if log_d <= log_threads {
+            serial_fft::<Fr>(&mut v2_coeffs, &v2_omega, log_d);
+        } else {
+            parallel_fft::<Fr>(&mut v2_coeffs, &worker, &v2_omega, log_d, log_threads);
+        }
+        let cpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("CPU ({} cores) took {}ms.", 1 << log_threads, cpu_dur);
+
+        println!("Speedup: x{}", cpu_dur as f32 / gpu_dur as f32);
+
+        assert!(v1_coeffs == v2_coeffs);
+        println!("============================");
+
+    }
+}
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 #[test_log::test] // Automatically wraps test to initialize logging
@@ -900,6 +978,9 @@ fn test_best_fft_multiple_gpu() {
         assert_eq!(prev_fft_coeffs, optimized_fft_coeffs);
     }
 }
+
+
+
 
 
 

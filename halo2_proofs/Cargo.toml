@@ -114,7 +114,7 @@ tracing-subscriber = {version = "0.3", default-features = false, features = ["en
 getrandom = { version = "0.2", features = ["js"] }
 
 [features]
-default = ["batch","cuda"]
+default = ["batch","cuda", "bn254"]
 cuda = ["ec-gpu-gen/cuda", "fs2","blstrs/gpu"]
 opencl = ["ec-gpu-gen/opencl", "fs2","blstrs/gpu"]
 dev-graph = ["plotters", "tabbycat"]
@@ -126,6 +126,9 @@ circuit-params = []
 gpu = ["rust-gpu-tools", "ff-cl-gen", "fs2", "lazy_static", "crossbeam", "futures/thread-pool"]
 gwc = []
 cpu=[]
+bls=[]
+bn254=[]
+
 
 [lib]
 bench = false
@@ -142,6 +145,5 @@ ec-gpu-gen = { path = "../ec-gpu-gen", version = "0.7.0" }
 rustversion = "1.0.6"
 blstrs = { version = "0.7.0", features = ["__private_bench"] }
 halo2curves ={ path = "../../halo2curves", features = ["gpu"]}
-
 #ec-gpu-gen = { version = "0.7.0" }
 #rustversion = "1.0.6"
