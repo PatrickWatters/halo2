@@ -3,9 +3,7 @@ members = [
     "halo2",
     "halo2_gadgets",
     "halo2_proofs",
-    "sha256test",
-    "ec-gpu",
-    "ec-gpu-gen",
+    "sha256test"
 ]
 
 [patch.crates-io]
