@@ -19,7 +19,7 @@
 )]
 #![deny(broken_intra_doc_links)]
 #![deny(missing_debug_implementations)]
-#![deny(missing_docs)]
+//#![deny(missing_docs)]
 #![deny(unsafe_code)]
 // Remove this once we update pasta_curves
 #![allow(unused_imports)]
@@ -32,7 +32,8 @@ mod multicore;
 pub mod plonk;
 pub mod poly;
 pub mod transcript;
-
 pub mod dev;
 mod helpers;
 pub use helpers::SerdeFormat;
+//pub mod gpu;
+

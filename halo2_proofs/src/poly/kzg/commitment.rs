@@ -362,6 +362,8 @@ where
         let size = scalars.len();
         assert!(bases.len() >= size);
         best_multiexp(&scalars, &bases[0..size])
+        //multiexp_gpu(&scalars, &bases[0..size])
+
     }
 
     fn get_g(&self) -> &[E::G1Affine] {
