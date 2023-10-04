@@ -322,8 +322,6 @@ pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
 
-
-
     fn bitreverse(mut n: usize, l: usize) -> usize {
         let mut r = 0;
         for _ in 0..l {
@@ -392,13 +390,13 @@ pub fn fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, l
     //uses the ec-gpu crate
     let devices = Device::all();
     let mut kern = FftKernel::<Bn256>::create(&devices).expect("Cannot initialize kernel!");
-
-
     //let t: Arc<Vec<_>> = Arc::new(coeffs.iter().map(|a| a.to_repr()).collect());
     //let g:Arc<Vec<_>> = Arc::new(bases.to_vec().clone());
     //let g2 = (g.clone(), 0);
     //let (bss, skip) =  (g2.0.clone(), g2.1);
-    kern.radix_fft(a, omega, log_n).expect("GPU FFT failed!");
+
+    kern.radix_fft_many(&mut [a], &[omega], &[log_n]).expect("GPU FFT failed!");
+    //kern.radix_fft(a, omega, log_n).expect("GPU FFT failed!");
 }
 
 /// This perform recursive butterfly arithmetic
@@ -705,3 +703,42 @@ fn test_lagrange_interpolate() {
         }
     }
 }
+
+#[test]
+fn test_best_fft_multiple_gpu() {
+    use crate::poly::EvaluationDomain;
+    use halo2curves::bn256::Fr;
+    use rand_core::OsRng;
+
+    for k in 21..=23 {
+        let rng = OsRng;
+        // polynomial degree n = 2^k
+        let n = 1u64 << k;
+        // polynomial coeffs
+        let coeffs: Vec<_> = (0..n).map(|_| Fr::random(rng)).collect();
+        // evaluation domain
+        let domain: EvaluationDomain<Fr> = EvaluationDomain::new(1, k);
+
+        println!("Testing FFT for {} elements, degree {}...", n, k);
+
+        let mut prev_fft_coeffs = coeffs.clone();
+
+        let mut now = std::time::Instant::now();
+        
+        best_fft(&mut prev_fft_coeffs, domain.get_omega(), k);
+        let cpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("CPU took {}ms.", cpu_dur);
+
+        let mut optimized_fft_coeffs = coeffs.clone();
+        now = std::time::Instant::now();
+        
+        fft_gpu(&mut optimized_fft_coeffs, domain.get_omega(), k);
+
+        let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("GPU took {}ms.", gpu_dur);
+        assert_eq!(prev_fft_coeffs, optimized_fft_coeffs);
+    }
+}
+
+
+
