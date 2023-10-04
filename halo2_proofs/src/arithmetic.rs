@@ -1,6 +1,6 @@
 //! This module provides common utilities, traits and structures for group,
 //! field and polynomial arithmetic.
-
+use std::path::Path;
 use super::multicore;
 pub use ff::Field;
 use group::{
@@ -22,6 +22,27 @@ use ec_gpu_gen::threadpool::Worker;
 #[cfg(any(feature = "cuda", feature = "opencl"))]
 use ec_gpu_gen::fft::FftKernel;
 use std::sync::Arc;
+use std::time::Instant;
+#[cfg(feature = "logging")]
+#[derive(serde::Serialize)]
+struct FFTLogInfo {     
+    device: String,
+    num_gpus: String,
+    elements: String,
+    degree: String,
+    kernel_initialization: String,
+    fft_duration: String,
+    total_duration: String,
+}
+
+struct MSMLogInfo {     
+    device: String,
+    num_gpus: String,
+    elements: String,
+    kernel_initialization: String,
+    msm_duration: String,
+    total_duration: String,
+}
 
 /// This represents an element of a group with basic operations that can be
 /// performed. This allows an FFT implementation (for example) to operate
@@ -157,11 +178,16 @@ pub fn small_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::C
 /// This function will panic if coeffs and bases have a different length.
 ///
 /// This will use multithreading if beneficial.
-#[cfg(not(any(feature = "cuda", feature = "opencl")))]
-pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
+pub fn multiexp_cpu<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
+
+    let global_timer = Instant::now();
+
     assert_eq!(coeffs.len(), bases.len());
     let num_threads = multicore::current_num_threads();
+
     if coeffs.len() > num_threads {
+        let timer = Instant::now();
+
         let chunk = coeffs.len() / num_threads;
         let num_chunks = coeffs.chunks(chunk).len();
         let mut results = vec![C::Curve::identity(); num_chunks];
@@ -178,10 +204,37 @@ pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Cu
                 });
             }
         });
-        results.iter().fold(C::Curve::identity(), |a, b| a + b)
+       let result = results.iter().fold(C::Curve::identity(), |a, b| a + b);
+
+       let msm_duration = timer.elapsed();
+       let total_duration: std::time::Duration = global_timer.elapsed();
+       let msm_info = MSMLogInfo{
+        device:String::from("cpu"),
+        num_gpus:format!("{}",0 as u32),
+        elements:format!("{}",bases.len() as u32),
+        kernel_initialization: format!("{:?}",0),
+        msm_duration: format!("{:?}",msm_duration.as_millis()),
+        total_duration: format!("{:?}",total_duration.as_millis()),};
+       #[cfg(feature = "logging")]
+       log_msm_stats(msm_info);
+       result
     } else {
+
+        let timer = Instant::now();
         let mut acc = C::Curve::identity();
         multiexp_serial(coeffs, bases, &mut acc);
+        let msm_duration = timer.elapsed();
+        let total_duration: std::time::Duration = global_timer.elapsed();
+        let msm_info = MSMLogInfo{
+         device:String::from("cpu"),
+         num_gpus:format!("{}",0 as u32),
+         elements:format!("{}",bases.len() as u32),
+         kernel_initialization: format!("{:?}",0),
+         msm_duration: format!("{:?}",msm_duration.as_millis()),
+         total_duration: format!("{:?}",total_duration.as_millis()),};
+        #[cfg(feature = "logging")]
+        log_msm_stats(msm_info);
+
         acc
     }
 }
@@ -191,52 +244,53 @@ pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Cu
 /// This function will panic if coeffs and bases have a different length.
 ///
 /// This will use multithreading if beneficial.
-#[cfg(any(feature = "cuda", feature = "opencl"))]
+//#[cfg(any(feature = "cuda", feature = "opencl"))]
 pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
-    
-    let result_gpu = multiexp_gpu(coeffs,bases).unwrap_or_else(|_error|
-    {   
-        println!("GPU msm failed, retrying on CPU");
 
-        assert_eq!(coeffs.len(), bases.len());
-        let num_threads = multicore::current_num_threads();
-        if coeffs.len() > num_threads {
-            let chunk = coeffs.len() / num_threads;
-            let num_chunks = coeffs.chunks(chunk).len();
-            let mut results = vec![C::Curve::identity(); num_chunks];
-            multicore::scope(|scope| {
-                let chunk = coeffs.len() / num_threads;
-    
-                for ((coeffs, bases), acc) in coeffs
-                    .chunks(chunk)
-                    .zip(bases.chunks(chunk))
-                    .zip(results.iter_mut())
-                {
-                    scope.spawn(move |_| {
-                        multiexp_serial(coeffs, bases, acc);
-                    });
-                }
-            });
-            results.iter().fold(C::Curve::identity(), |a, b| a + b)
-        } else {
-            let mut acc = C::Curve::identity();
-            multiexp_serial(coeffs, bases, &mut acc);
-            acc
-        }
-    });
-    result_gpu
+    #[cfg(any(feature = "cuda", feature = "opencl"))]
+    let result: <C as CurveAffine>::CurveExt = multiexp_gpu(coeffs, bases).unwrap();
+
+    #[cfg(not(any(feature = "cuda", feature = "opencl")))]
+    let result: <C as CurveAffine>::CurveExt = multiexp_cpu(coeffs, bases);
+
+    result
 }
 
+#[cfg(any(feature = "cuda", feature = "opencl"))]
 pub fn multiexp_gpu<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> Result<C::Curve, ec_gpu_gen::EcError>{
+
+    let global_timer = Instant::now();
+    let mut timer = Instant::now();
+
     //uses the ec-gpu crate
     let devices = Device::all();
     let mut kern = MultiexpKernel::<Bn256>::create(&devices).expect("Cannot initialize kernel!");
+    let kernel_initialization = timer.elapsed();
+
     let pool = Worker::new();
     let t: Arc<Vec<_>> = Arc::new(coeffs.iter().map(|a| a.to_repr()).collect());
     let g:Arc<Vec<_>> = Arc::new(bases.to_vec().clone());
     let g2 = (g.clone(), 0);
     let (bss, skip) =  (g2.0.clone(), g2.1);
-    kern.multiexp(&pool, bss, t, skip).map_err(Into::into)
+    
+    timer = Instant::now();
+    let gpu_result = kern.multiexp(&pool, bss, t, skip).map_err(Into::into);
+    let msm_duration = timer.elapsed();
+
+    let total_duration: std::time::Duration = global_timer.elapsed();
+
+    let msm_info = MSMLogInfo{
+        device:String::from("gpu"),
+        num_gpus:format!("{}",devices.len() as u32),
+        elements:format!("{}",coeffs.len() as u32),
+        kernel_initialization: format!("{:?}",kernel_initialization.as_millis()),
+        msm_duration: format!("{:?}",msm_duration.as_millis()),
+        total_duration: format!("{:?}",total_duration.as_millis()),
+    };
+    #[cfg(feature = "logging")]
+    log_msm_stats(msm_info);
+
+    gpu_result
 }
 
 
@@ -253,8 +307,10 @@ pub fn multiexp_gpu<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> Result
 /// by $n$.
 ///
 /// This will use multithreading if beneficial.
-#[cfg(not(any(feature = "cuda", feature = "opencl")))]
-pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+pub fn cpu_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+
+    let global_timer = Instant::now();
+
     fn bitreverse(mut n: usize, l: usize) -> usize {
         let mut r = 0;
         for _ in 0..l {
@@ -284,6 +340,9 @@ pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, 
             Some(tw)
         })
         .collect();
+
+
+    let timer = Instant::now();
 
     if log_n <= log_threads {
         let mut chunk = 2_usize;
@@ -317,87 +376,71 @@ pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, 
     } else {
         recursive_butterfly_arithmetic(a, n, 1, &twiddles)
     }
+    let fft_duration: std::time::Duration = timer.elapsed();
+
+    let total_duration: std::time::Duration = global_timer.elapsed();
+
+    let fft_info = FFTLogInfo{
+        device:String::from("cpu"),
+        num_gpus:format!("{}",0 as u32),
+        elements:format!("{}",1u64 << log_n),
+        degree:format!("{}",log_n as u32),
+        kernel_initialization: format!("{:?}", 0 as u32),
+        fft_duration: format!("{:?}",fft_duration.as_millis()),
+        total_duration: format!("{:?}",total_duration.as_millis()),
+
+    };
+    #[cfg(feature = "logging")]
+    log_fft_stats(fft_info);
+}
+
+pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+    #[cfg(any(feature = "cuda", feature = "opencl"))]
+    gpu_fft(a, omega, log_n);
+
+    #[cfg(not(any(feature = "cuda", feature = "opencl")))]
+    cpu_fft(a, omega, log_n);
+
 }
 
 #[cfg(any(feature = "cuda", feature = "opencl"))]
-pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+pub fn gpu_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+    
+    let global_timer = Instant::now();
+    let mut timer = Instant::now();
+    let devices = Device::all();
+    let mut kern = FftKernel::<Bn256>::create(&devices).expect("Cannot initialize kernel!");
+    let kernel_initialization = timer.elapsed();
+    timer = Instant::now();
+    kern.radix_fft_many(&mut [a], &[omega], &[log_n]).expect("GPU FFT failed!");
+    let fft_duration = timer.elapsed();
 
-    fn bitreverse(mut n: usize, l: usize) -> usize {
-        let mut r = 0;
-        for _ in 0..l {
-            r = (r << 1) | (n & 1);
-            n >>= 1;
-        }
-        r
-    }
+    let total_duration: std::time::Duration = global_timer.elapsed();
 
-    let threads = multicore::current_num_threads();
-    let log_threads = log2_floor(threads);
-    let n = a.len() as usize;
-    assert_eq!(n, 1 << log_n);
+    let fft_info = FFTLogInfo{
+        device:String::from("gpu"),
+        num_gpus:format!("{}",devices.len() as u32),
+        elements:format!("{}",1u64 << log_n),
+        degree:format!("{}",log_n as u32),
+        kernel_initialization: format!("{:?}",kernel_initialization.as_millis()),
+        fft_duration: format!("{:?}",fft_duration.as_millis()),
+        total_duration: format!("{:?}",total_duration.as_millis()),
 
-    for k in 0..n {
-        let rk = bitreverse(k, log_n as usize);
-        if k < rk {
-            a.swap(rk, k);
-        }
-    }
+    };
+    #[cfg(feature = "logging")]
+    log_fft_stats(fft_info);
 
-    // precompute twiddle factors
-    let twiddles: Vec<_> = (0..(n / 2) as usize)
-        .scan(Scalar::ONE, |w, _| {
-            let tw = *w;
-            *w *= &omega;
-            Some(tw)
-        })
-        .collect();
 
-    if log_n <= log_threads {
-        let mut chunk = 2_usize;
-        let mut twiddle_chunk = (n / 2) as usize;
-        for _ in 0..log_n {
-            a.chunks_mut(chunk).for_each(|coeffs| {
-                let (left, right) = coeffs.split_at_mut(chunk / 2);
-
-                // case when twiddle factor is one
-                let (a, left) = left.split_at_mut(1);
-                let (b, right) = right.split_at_mut(1);
-                let t = b[0];
-                b[0] = a[0];
-                a[0] += &t;
-                b[0] -= &t;
-
-                left.iter_mut()
-                    .zip(right.iter_mut())
-                    .enumerate()
-                    .for_each(|(i, (a, b))| {
-                        let mut t = *b;
-                        t *= &twiddles[(i + 1) * twiddle_chunk];
-                        *b = *a;
-                        *a += &t;
-                        *b -= &t;
-                    });
-            });
-            chunk *= 2;
-            twiddle_chunk /= 2;
-        }
-    } else {
-        recursive_butterfly_arithmetic(a, n, 1, &twiddles)
-    }
 }
 
-pub fn fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+
+/*pub fn fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
     //uses the ec-gpu crate
     let devices = Device::all();
     let mut kern = FftKernel::<Bn256>::create(&devices).expect("Cannot initialize kernel!");
-    //let t: Arc<Vec<_>> = Arc::new(coeffs.iter().map(|a| a.to_repr()).collect());
-    //let g:Arc<Vec<_>> = Arc::new(bases.to_vec().clone());
-    //let g2 = (g.clone(), 0);
-    //let (bss, skip) =  (g2.0.clone(), g2.1);
-
     kern.radix_fft_many(&mut [a], &[omega], &[log_n]).expect("GPU FFT failed!");
-    //kern.radix_fft(a, omega, log_n).expect("GPU FFT failed!");
 }
+*/
 
 /// This perform recursive butterfly arithmetic
 pub fn recursive_butterfly_arithmetic<Scalar: Field, G: FftGroup<Scalar>>(
@@ -678,6 +721,69 @@ pub(crate) fn powers<F: Field>(base: F) -> impl Iterator<Item = F> {
     std::iter::successors(Some(F::ONE), move |power| Some(base * power))
 }
 
+fn log_msm_stats(msm_info: MSMLogInfo)
+{   
+    let log_path = "C:\\Users\\pw\\projects\\dist-zkml\\halo2\\logs";
+    let log_name = "msm.csv";
+    let log_file = format!("{}\\{}", log_path, log_name);
+    //let params_path = Path::new(&log_file);
+
+    let already_exists= Path::new(&log_file).exists();
+
+    let file = std::fs::OpenOptions::new()
+    .write(true)
+    .create(true)
+    .append(true)
+    .open(log_file)
+    .unwrap();
+
+    let mut wtr = csv::Writer::from_writer(file);
+
+    if already_exists == false
+    {
+        let _ = wtr.write_record(&["device","num_gpus", "elements", "kernel_initialization(ms)", 
+        "msm_duration(ms)", "total_duration(ms)", "timestamp"]);    
+    }
+    let timestamp = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+
+    let _ = wtr.write_record(&[msm_info.device, msm_info.num_gpus, msm_info.elements,
+        msm_info.kernel_initialization, msm_info.msm_duration, msm_info.total_duration,timestamp,]);
+    let _ = wtr.flush();
+}
+
+
+fn log_fft_stats(fft_info: FFTLogInfo)
+{   
+
+    let log_path = "C:\\Users\\pw\\projects\\dist-zkml\\halo2\\logs";
+    let log_name = "fft.csv";
+    let log_file = format!("{}\\{}", log_path, log_name);
+    //let params_path = Path::new(&log_file);
+
+    let already_exists= Path::new(&log_file).exists();
+
+    let file = std::fs::OpenOptions::new()
+    .write(true)
+    .create(true)
+    .append(true)
+    .open(log_file)
+    .unwrap();
+
+    let mut wtr = csv::Writer::from_writer(file);
+
+    if already_exists == false
+    {
+        let _ = wtr.write_record(&["device","num_gpus", "elements","degree", "kernel_initialization(ms)", 
+        "fft_duration(ms)", "total_duration(ms)", "timestamp"]);    
+    }
+    let timestamp = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+
+    let _ = wtr.write_record(&[fft_info.device, fft_info.num_gpus, fft_info.elements, fft_info.degree,
+        fft_info.kernel_initialization, fft_info.fft_duration, fft_info.total_duration,timestamp,]);
+    let _ = wtr.flush();
+}
+
+
 #[cfg(test)]
 use rand_core::OsRng;
 
@@ -703,6 +809,152 @@ fn test_lagrange_interpolate() {
         }
     }
 }
+
+
+#[test]
+fn test_gpu_msm() 
+{
+    use rand_core::OsRng;
+    use halo2curves::pairing::Engine;
+
+    let k = 2;
+    let max_size = 1 << (k + 1);
+    //let mut rng = Pcg32::seed_from_u64(42);
+    let rng = OsRng;
+    let multiexp_scalars_2:Vec<<Bn256 as Engine>::Scalar> = (0..max_size)
+        .map(|_| <Bn256 as Engine>::Scalar::random(rng))
+        .collect();
+      
+    let multiexp_bases_2: Vec<<Bn256 as Engine>::G1Affine> = (0..max_size)
+    .map(|_| <Bn256 as Engine>::G1::random(rng).to_affine())
+    .collect();
+    
+    let gpu = multiexp_gpu(&multiexp_scalars_2, &multiexp_bases_2).unwrap(); 
+    println!("gpu:{:?}",  gpu.to_affine());
+}
+
+#[test]
+fn test_best_msm() {
+    use halo2curves::pairing::Engine;
+    use halo2curves::bn256::Fr;
+    use rand_pcg::Pcg32;
+    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use multiexp_gpu;
+    use multiexp_cpu;
+
+    const MIN_MSM_SIZE: usize = 10;
+    const MAX_MSM_SIZE: usize = 15;
+
+    let mut rng: rand_pcg::Lcg64Xsh32 = Pcg32::seed_from_u64(42);
+
+    for k in MIN_MSM_SIZE..=MAX_MSM_SIZE {
+
+        let samples = 1 << (k);
+
+        println!("Testing Multiexp for {} elements...", samples);
+
+        let coeffs:Vec<<Bn256 as Engine>::Scalar> = (0..samples)
+        .map(|_| <Bn256 as Engine>::Scalar::random(&mut rng))
+        .collect();
+
+        let bases: Vec<<Bn256 as Engine>::G1Affine> = (0..samples)
+        .map(|_| <Bn256 as Engine>::G1::random(&mut rng).to_affine())
+        .collect();
+    
+        let mut now = std::time::Instant::now();
+        let cpu = multiexp_cpu(&coeffs, &bases);
+        let cpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("CPU took {}ms.", cpu_dur);
+
+        now = std::time::Instant::now();
+        let gpu = multiexp_gpu(&coeffs, &bases).unwrap();
+        let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("GPU took {}ms.", gpu_dur);
+
+        println!("Speedup: x{}", cpu_dur as f32 / gpu_dur as f32);
+
+        println!("cpu:{:?}",  cpu.to_affine());
+        println!("gpu:{:?}",  gpu.to_affine());
+        assert_eq!(cpu.to_affine(), gpu.to_affine())
+
+    }
+}
+
+
+
+
+#[test]
+fn test_gpu_fft() {
+    use crate::poly::EvaluationDomain;
+    use halo2curves::bn256::Fr;
+    use rand_core::OsRng;
+
+    for k in 8..=16 {
+        let rng = OsRng;
+        // polynomial degree n = 2^k
+        let n = 1u64 << k;
+        // polynomial coeffs
+        let mut coeffs: Vec<_> = (0..n).map(|_| Fr::random(rng)).collect();
+        // evaluation domain
+        let domain: EvaluationDomain<Fr> = EvaluationDomain::new(1, k);
+
+        println!("Testing FFT for {} elements, degree {}...", n, k);
+
+        let now = std::time::Instant::now();
+
+        best_fft(&mut coeffs, domain.get_omega(), k);
+        let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("GPU took {}ms.", gpu_dur);
+
+    }
+}
+
+
+#[test]
+fn test_best_fft() {
+    use crate::poly::EvaluationDomain;
+    use halo2curves::bn256::Fr;
+    use rand_pcg::Pcg32;
+    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use cpu_fft;
+    use gpu_fft;
+
+    const MIN_FFT_SIZE: u32 = 20;
+    const MAX_FFT_SIZE: u32 = 24;
+    
+    for k in MIN_FFT_SIZE..=MAX_FFT_SIZE {
+        let mut rng = Pcg32::seed_from_u64(42);
+        // poly: OsRngnomial degree n = 2^k
+        let n = 1u64 << k;
+        // polynomial coeffs
+        let coeffs: Vec<_> = (0..n).map(|_| Fr::random(&mut rng)).collect();
+        // evaluation domain
+        let domain: EvaluationDomain<Fr> = EvaluationDomain::new(1, k);
+
+        println!("Testing FFT for {} elements, degree {}...", n, k);
+
+        let mut prev_fft_coeffs = coeffs.clone();
+
+        let mut now = std::time::Instant::now();
+        
+        cpu_fft(&mut prev_fft_coeffs, domain.get_omega(), k);
+        let cpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("CPU took {}ms.", cpu_dur);
+
+        let mut optimized_fft_coeffs = coeffs.clone();
+        now = std::time::Instant::now();
+        
+        gpu_fft(&mut optimized_fft_coeffs, domain.get_omega(), k);
+
+        let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        println!("GPU took {}ms.", gpu_dur);
+
+        println!("Speedup: x{}", cpu_dur as f32 / gpu_dur as f32);
+        assert_eq!(prev_fft_coeffs, optimized_fft_coeffs);
+    }
+}
+
+
 
 #[test]
 fn test_best_fft_multiple_gpu() {
@@ -732,7 +984,7 @@ fn test_best_fft_multiple_gpu() {
         let mut optimized_fft_coeffs = coeffs.clone();
         now = std::time::Instant::now();
         
-        fft_gpu(&mut optimized_fft_coeffs, domain.get_omega(), k);
+        best_fft(&mut optimized_fft_coeffs, domain.get_omega(), k);
 
         let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
         println!("GPU took {}ms.", gpu_dur);
