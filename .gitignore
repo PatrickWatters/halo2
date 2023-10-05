@@ -5,3 +5,4 @@ Cargo.lock
 **/*.html
 .DS_Store
 logs/*
+halo2_proofs/
