@@ -9,17 +9,17 @@ use group::{
 };
 
 pub use halo2curves::{CurveAffine, CurveExt};
-#[cfg(any(feature = "cuda", feature = "opencl"))]
+#[cfg(any(feature = "cuda", feature = "opencl",feature = "logging"))]
 use ec_gpu_gen;
-#[cfg(any(feature = "cuda", feature = "opencl"))]
+#[cfg(any(feature = "cuda", feature = "opencl",feature = "logging"))]
 use ec_gpu_gen::rust_gpu_tools::{program_closures, Device, Program, Vendor, CUDA_CORES};
-#[cfg(any(feature = "cuda", feature = "opencl"))]
+#[cfg(any(feature = "cuda", feature = "opencl",feature = "logging"))]
 use ec_gpu_gen::multiexp::MultiexpKernel;
-#[cfg(any(feature = "cuda", feature = "opencl"))]
+#[cfg(any(feature = "cuda", feature = "opencl",feature = "logging"))]
 use halo2curves::bn256::Bn256;
-#[cfg(any(feature = "cuda", feature = "opencl"))]
+#[cfg(any(feature = "cuda", feature = "opencl",feature = "logging"))]
 use ec_gpu_gen::threadpool::Worker;
-#[cfg(any(feature = "cuda", feature = "opencl"))]
+#[cfg(any(feature = "cuda", feature = "opencl",feature = "logging"))]
 use ec_gpu_gen::fft::FftKernel;
 use std::sync::Arc;
 use std::time::Instant;
@@ -256,7 +256,7 @@ pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Cu
     result
 }
 
-#[cfg(any(feature = "cuda", feature = "opencl"))]
+#[cfg(any(feature = "cuda", feature = "opencl",feature = "logging"))]
 pub fn multiexp_gpu<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> Result<C::Curve, ec_gpu_gen::EcError>{
 
     let global_timer = Instant::now();
@@ -403,7 +403,7 @@ pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, 
 
 }
 
-#[cfg(any(feature = "cuda", feature = "opencl"))]
+#[cfg(any(feature = "cuda", feature = "opencl",feature = "logging"))]
 pub fn gpu_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
     
     let global_timer = Instant::now();
@@ -723,9 +723,9 @@ pub(crate) fn powers<F: Field>(base: F) -> impl Iterator<Item = F> {
 
 fn log_msm_stats(msm_info: MSMLogInfo)
 {   
-    let log_path = "C:\\Users\\pw\\projects\\dist-zkml\\halo2\\logs";
+    let log_path = "logs";
     let log_name = "msm.csv";
-    let log_file = format!("{}\\{}", log_path, log_name);
+    let log_file = format!("{}/{}", log_path, log_name);
     //let params_path = Path::new(&log_file);
 
     let already_exists= Path::new(&log_file).exists();
@@ -742,12 +742,12 @@ fn log_msm_stats(msm_info: MSMLogInfo)
     if already_exists == false
     {
         let _ = wtr.write_record(&["device","num_gpus", "elements", "kernel_initialization(ms)", 
-        "msm_duration(ms)", "total_duration(ms)", "timestamp"]);    
+        "msm_duration(ms)", "total_duration(ms)",]);    
     }
     let timestamp = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
 
     let _ = wtr.write_record(&[msm_info.device, msm_info.num_gpus, msm_info.elements,
-        msm_info.kernel_initialization, msm_info.msm_duration, msm_info.total_duration,timestamp,]);
+        msm_info.kernel_initialization, msm_info.msm_duration, msm_info.total_duration,]);
     let _ = wtr.flush();
 }
 
@@ -755,9 +755,9 @@ fn log_msm_stats(msm_info: MSMLogInfo)
 fn log_fft_stats(fft_info: FFTLogInfo)
 {   
 
-    let log_path = "C:\\Users\\pw\\projects\\dist-zkml\\halo2\\logs";
+    let log_path = "logs";
     let log_name = "fft.csv";
-    let log_file = format!("{}\\{}", log_path, log_name);
+    let log_file = format!("{}/{}", log_path, log_name);
     //let params_path = Path::new(&log_file);
 
     let already_exists= Path::new(&log_file).exists();
@@ -774,12 +774,12 @@ fn log_fft_stats(fft_info: FFTLogInfo)
     if already_exists == false
     {
         let _ = wtr.write_record(&["device","num_gpus", "elements","degree", "kernel_initialization(ms)", 
-        "fft_duration(ms)", "total_duration(ms)", "timestamp"]);    
+        "fft_duration(ms)", "total_duration(ms)",]);    
     }
     let timestamp = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
 
     let _ = wtr.write_record(&[fft_info.device, fft_info.num_gpus, fft_info.elements, fft_info.degree,
-        fft_info.kernel_initialization, fft_info.fft_duration, fft_info.total_duration,timestamp,]);
+        fft_info.kernel_initialization, fft_info.fft_duration, fft_info.total_duration,]);
     let _ = wtr.flush();
 }
 

@@ -91,7 +91,9 @@ getrandom = { version = "0.2", features = ["js"] }
 
 
 [features]
-default = ["batch", "opencl", "logging"]
+#default = ["batch", "logging"]
+default = ["batch", "logging","opencl"]
+
 dev-graph = ["plotters", "tabbycat"]
 gadget-traces = ["backtrace"]
 thread-safe-region = []
@@ -100,7 +102,7 @@ batch = ["rand_core/getrandom"]
 circuit-params = []
 cuda=["ec-gpu-gen","ec-gpu", "fs2"]
 opencl=["ec-gpu-gen","ec-gpu", "fs2"]
-logging=[]
+logging=["ec-gpu-gen","ec-gpu", "fs2"]
 
 [lib]
 bench = false
