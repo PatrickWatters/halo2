@@ -723,7 +723,7 @@ pub(crate) fn powers<F: Field>(base: F) -> impl Iterator<Item = F> {
 
 fn log_msm_stats(msm_info: MSMLogInfo)
 {   
-    let log_path = "logs";
+    let log_path = "exp_results";
     let log_name = "msm.csv";
     //let log_file = format!("{}/{}", log_path, log_name);
     let log_file = format!("C:\\Users\\pw\\projects\\dist-zkml\\halo2\\logs\\msm.csv");
@@ -757,7 +757,7 @@ fn log_msm_stats(msm_info: MSMLogInfo)
 fn log_fft_stats(fft_info: FFTLogInfo)
 {   
 
-    let log_path = "logs";
+    let log_path = "exp_results";
     let log_name = "fft.csv";
     //let log_file = format!("{}/{}", log_path, log_name);
     let log_file = format!("C:\\Users\\pw\\projects\\dist-zkml\\halo2\\logs\\fft.csv");
