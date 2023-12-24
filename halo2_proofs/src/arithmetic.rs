@@ -23,7 +23,7 @@ use ec_gpu_gen::threadpool::Worker;
 use ec_gpu_gen::fft::FftKernel;
 use std::sync::Arc;
 use std::time::Instant;
-#[cfg(feature = "logging")]
+
 #[derive(serde::Serialize)]
 struct FFTLogInfo {     
     device: String,
@@ -725,7 +725,9 @@ fn log_msm_stats(msm_info: MSMLogInfo)
 {   
     let log_path = "logs";
     let log_name = "msm.csv";
-    let log_file = format!("{}/{}", log_path, log_name);
+    //let log_file = format!("{}/{}", log_path, log_name);
+    let log_file = format!("C:\\Users\\pw\\projects\\dist-zkml\\halo2\\logs\\msm.csv");
+
     //let params_path = Path::new(&log_file);
 
     let already_exists= Path::new(&log_file).exists();
@@ -757,7 +759,9 @@ fn log_fft_stats(fft_info: FFTLogInfo)
 
     let log_path = "logs";
     let log_name = "fft.csv";
-    let log_file = format!("{}/{}", log_path, log_name);
+    //let log_file = format!("{}/{}", log_path, log_name);
+    let log_file = format!("C:\\Users\\pw\\projects\\dist-zkml\\halo2\\logs\\fft.csv");
+
     //let params_path = Path::new(&log_file);
 
     let already_exists= Path::new(&log_file).exists();

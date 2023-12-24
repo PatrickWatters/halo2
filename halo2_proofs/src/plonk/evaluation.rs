@@ -11,6 +11,7 @@ use crate::{
     },
     transcript::{EncodedChallenge, TranscriptWrite},
 };
+use chrono::Date;
 use group::prime::PrimeCurve;
 use group::{
     ff::{BatchInvert, Field, PrimeField, WithSmallOrderMulGroup},
@@ -107,7 +108,7 @@ impl ValueSource {
 
 /// Calculation
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Calculation {
+pub enum  Calculation {
     /// This is an addition
     Add(ValueSource, ValueSource),
     /// This is a subtraction
@@ -170,7 +171,11 @@ impl Calculation {
                 let factor = get_value(factor);
                 let mut value = get_value(start_value);
                 for part in parts.iter() {
+                    //let tv: F = get_value(part);
+                    //let vc = value.clone();
                     value = value * factor + get_value(part);
+                    //println!("{:?} * {:?} + {:?} = {:?}", vc, factor, tv, value);
+
                 }
                 value
             }
@@ -227,7 +232,7 @@ impl<C: CurveAffine> Evaluator<C> {
         let mut ev = Evaluator::default();
 
         // Custom gates
-        let mut parts = Vec::new();
+        let mut parts: Vec<ValueSource> = Vec::new();
         for gate in cs.gates.iter() {
             parts.extend(
                 gate.polynomials()
@@ -357,11 +362,13 @@ impl<C: CurveAffine> Evaluator<C> {
                     .collect()
             })
             .collect();
+        println!("Advice {:?}",advice);
 
         let mut values = domain.empty_extended();
 
         // Core expression evaluations
-        let num_threads = multicore::current_num_threads();
+        //let num_threads = multicore::current_num_threads();
+        let num_threads = 1;
         for ((((advice, instance), lookups), shuffles), permutation) in advice
             .iter()
             .zip(instance.iter())
@@ -833,6 +840,12 @@ impl<C: CurveAffine> GraphEvaluator<C> {
                 y,
                 previous_value,
             );
+        }
+
+        for calc in self.calculations.iter() {
+            let calc_result = data.intermediates[calc.target];
+            println!("{:?}, Calc Target: {:?}, Calc Result: {:?}",idx, calc.target, calc_result);
+            
         }
 
         // Return the result of the last calculation (if any)

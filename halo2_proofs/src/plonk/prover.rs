@@ -35,10 +35,18 @@ use crate::{
 };
 use group::prime::PrimeCurveAffine;
 
+#[derive(Default)]
+struct ProverInfoCollector {
+    prover_duration: String,
+    degree_of_instance_polys: Vec<String>,
+    degree_of_advice_polys: Vec<String> // Change to Vec<i32> for storing a vector of integers
+}
+
 /// This creates a proof for the provided `circuit` when given the public
 /// parameters `params` and the proving key [`ProvingKey`] that was
 /// generated previously for the same circuit. The provided `instances`
 /// are zero-padded internally.
+/// 
 pub fn create_proof<
     'params,
     Scheme: CommitmentScheme,
@@ -63,6 +71,8 @@ where
             return Err(Error::InvalidInstances);
         }
     }
+
+    let mut prover_info_collector: ProverInfoCollector = Default::default();
 
     // Hash verification key into transcript
     pk.vk.hash_into(transcript)?;
@@ -104,6 +114,7 @@ where
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
+
             if P::QUERY_INSTANCE {
                 let instance_commitments_projective: Vec<_> = instance_values
                     .iter()
@@ -131,12 +142,30 @@ where
                 })
                 .collect();
 
+            let mut instance_counter =1;
+            for poly in &instance_polys {
+                println!("Degree of instance poly {}: {:?}", instance_counter, poly.num_coeffs()-1);
+                
+                prover_info_collector.degree_of_instance_polys.push(format!(
+                    "Degree of instance poly {}: {:?}",
+                    instance_counter,
+                    poly.num_coeffs() - 1
+                ));
+                
+                instance_counter += 1;
+
+            }
+
             Ok(InstanceSingle {
                 instance_values,
                 instance_polys,
             })
+
+
+
         })
         .collect::<Result<Vec<_>, _>>()?;
+
 
     #[derive(Clone)]
     struct AdviceSingle<C: CurveAffine, B: Basis> {
@@ -405,8 +434,9 @@ where
         let challenges = (0..meta.num_challenges)
             .map(|index| challenges.remove(&index).unwrap())
             .collect::<Vec<_>>();
-
+               
         (advice, challenges)
+
     };
 
     // Sample theta challenge for keeping lookup columns linearly independent
@@ -550,6 +580,7 @@ where
         &permutations,
     );
 
+    
     // Construct the vanishing argument's h(X) commitments
     let vanishing = vanishing.construct(params, domain, h_poly, &mut rng, transcript)?;
 

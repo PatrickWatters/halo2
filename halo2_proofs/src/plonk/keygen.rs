@@ -364,6 +364,8 @@ where
         }
     });
 
+    println!("&vk.cs: {:?}",&vk.cs);
+
     // Compute the optimized evaluation data structure
     let ev = Evaluator::new(&vk.cs);
 
