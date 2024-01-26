@@ -166,6 +166,7 @@ where
             &[&[]],
             OsRng,
             &mut transcript,
+            
         )
         .expect("proof generation should not fail");
 

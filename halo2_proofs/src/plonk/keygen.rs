@@ -311,21 +311,25 @@ where
 
     let mut fixed = batch_invert_assigned(assembly.fixed);
     let (cs, selector_polys) = cs.compress_selectors(assembly.selectors);
+    
     fixed.extend(
         selector_polys
             .into_iter()
             .map(|poly| vk.domain.lagrange_from_vec(poly)),
     );
 
+
     let fixed_polys: Vec<_> = fixed
         .iter()
         .map(|poly| vk.domain.lagrange_to_coeff(poly.clone()))
         .collect();
 
+
     let fixed_cosets = fixed_polys
         .iter()
         .map(|poly| vk.domain.coeff_to_extended(poly.clone()))
         .collect();
+
 
     let permutation_pk = assembly
         .permutation
@@ -364,7 +368,7 @@ where
         }
     });
 
-    println!("&vk.cs: {:?}",&vk.cs);
+   // println!("&vk.cs: {:?}",&vk.cs);
 
     // Compute the optimized evaluation data structure
     let ev = Evaluator::new(&vk.cs);

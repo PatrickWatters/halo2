@@ -12,8 +12,9 @@ use group::{
     ff::{BatchInvert, Field, PrimeField},
     Group,
 };
+use indexmap::IndexMap;
 
-use std::marker::PhantomData;
+use std::{marker::PhantomData, collections::HashMap, fmt::LowerHex};
 
 /// This structure contains precomputed constants and other details needed for
 /// performing operations on an evaluation domain of size $2^k$ and an extended
@@ -225,9 +226,12 @@ impl<F: WithSmallOrderMulGroup<3>> EvaluationDomain<F> {
     /// length.
     pub fn lagrange_to_coeff(&self, mut a: Polynomial<F, LagrangeCoeff>) -> Polynomial<F, Coeff> {
         assert_eq!(a.values.len(), 1 << self.k);
+        
+        //println!("before ifft (lagrange_to_coeff) {:?}", a.values);
 
         // Perform inverse FFT to obtain the polynomial in coefficient form
         Self::ifft(&mut a.values, self.omega_inv, self.k, self.ifft_divisor);
+        //println!("after ifft (lagrange_to_coeff) {:?}", a.values);
 
         Polynomial {
             values: a.values,
@@ -242,8 +246,13 @@ impl<F: WithSmallOrderMulGroup<3>> EvaluationDomain<F> {
         mut a: Polynomial<F, Coeff>,
     ) -> Polynomial<F, ExtendedLagrangeCoeff> {
         assert_eq!(a.values.len(), 1 << self.k);
+        
+        //println!("before distribute_powers_zeta {:?}", a.values);
 
         self.distribute_powers_zeta(&mut a.values, true);
+
+        //println!("after distribute_powers_zeta {:?}", a.values);
+
         a.values.resize(self.extended_len(), F::ZERO);
         best_fft(&mut a.values, self.extended_omega, self.extended_k);
 
@@ -360,6 +369,10 @@ impl<F: WithSmallOrderMulGroup<3>> EvaluationDomain<F> {
         });
     }
 
+    /// Get the size n
+        pub fn n(&self) -> u64 {
+            self.n
+        }
     /// Get the size of the domain
     pub fn k(&self) -> u32 {
         self.k
@@ -391,6 +404,11 @@ impl<F: WithSmallOrderMulGroup<3>> EvaluationDomain<F> {
         self.extended_omega
     }
 
+        /// Get the generator of the extended domain's multiplicative subgroup.
+        pub fn get_extended_omega_inv(&self) -> F {
+            self.extended_omega_inv
+        }
+
     /// Multiplies a value by some power of $\omega$, essentially rotating over
     /// the domain.
     pub fn rotate_omega(&self, value: F, rotation: Rotation) -> F {
@@ -403,6 +421,27 @@ impl<F: WithSmallOrderMulGroup<3>> EvaluationDomain<F> {
                 .pow_vartime(&[(rotation.0 as i64).unsigned_abs()]);
         }
         point
+    }
+
+    pub fn as_dict(self) -> IndexMap<String, String>
+    {
+        let mut data_dict: IndexMap<String, String> = IndexMap::new();
+        // Populate the dictionary with your data
+        data_dict.insert("n".to_string(), self.n().to_string());
+        data_dict.insert("k".to_string(), self.k.to_string());
+        data_dict.insert("extended_k".to_string(), self.extended_k.to_string());
+        data_dict.insert("omega".to_string(), format!("{:?}", self.omega));
+        data_dict.insert("omega_inv".to_string(), format!("{:?}",self.omega_inv));
+        data_dict.insert("extended_omega".to_string(), format!("{:?}",self.extended_omega));
+        data_dict.insert("extended_omega_inv".to_string(), format!("{:?}",self.extended_omega_inv));
+        data_dict.insert("quotient_poly_degree".to_string(),format!("{:?}", self.quotient_poly_degree));
+        data_dict.insert("g_coset".to_string(), format!("{:?}",self.g_coset));
+        data_dict.insert("g_coset_inv".to_string(),format!("{:?}", self.g_coset_inv));
+        data_dict.insert("extended_ifft_divisor".to_string(),format!("{:?}", self.extended_ifft_divisor));
+        data_dict.insert("barycentric_weight".to_string(), format!("{:?}",self.barycentric_weight));
+        data_dict.insert("t_evaluations".to_string(), format!("{:?}",self.t_evaluations));
+
+        data_dict
     }
 
     /// Computes evaluations (at the point `x`, where `xn = x^n`) of Lagrange

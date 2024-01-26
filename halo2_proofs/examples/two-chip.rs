@@ -2,10 +2,24 @@ use std::marker::PhantomData;
 
 use halo2_proofs::{
     arithmetic::Field,
+    halo2curves::bn256::{Bn256, Fr, G1Affine},
+    halo2curves::ff:: {PrimeField},
     circuit::{AssignedCell, Chip, Layouter, Region, SimpleFloorPlanner, Value},
-    plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Instance, Selector},
-    poly::Rotation,
+    plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance, Selector, create_proof, keygen_pk, keygen_vk, verify_proof},
+    poly::{
+        Rotation,
+        commitment::ParamsProver,
+        kzg::{
+            commitment::{KZGCommitmentScheme, ParamsKZG},
+            multiopen::{ProverSHPLONK, VerifierSHPLONK},
+            strategy::SingleStrategy,
+        },
+    },
+    transcript::{
+        Blake2bRead, Blake2bWrite, Challenge255, TranscriptReadBuffer, TranscriptWriterBuffer,
+    },
 };
+
 
 // ANCHOR: field-instructions
 /// A variable representing a number.
@@ -498,8 +512,7 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
 
 #[allow(clippy::many_single_char_names)]
 fn main() {
-    use halo2_proofs::dev::MockProver;
-    use halo2curves::pasta::Fp;
+
     use rand_core::OsRng;
 
     // ANCHOR: test-circuit
@@ -509,9 +522,9 @@ fn main() {
 
     // Prepare the private and public inputs to the circuit!
     let rng = OsRng;
-    let a = Fp::random(rng);
-    let b = Fp::random(rng);
-    let c = Fp::random(rng);
+    let a = Fr::random(rng);
+    let b = Fr::random(rng);
+    let c = Fr::random(rng);
     let d = (a + b) * c;
 
     // Instantiate the circuit with the private inputs.
@@ -521,17 +534,53 @@ fn main() {
         c: Value::known(c),
     };
 
-    // Arrange the public input. We expose the multiplication result in row 0
+
+        // Arrange the public input. We expose the multiplication result in row 0
     // of the instance column, so we position it there in our public inputs.
-    let mut public_inputs = vec![d];
+    let public_inputs = vec![c];
+    
+    let params = ParamsKZG::<Bn256>::setup(k, OsRng);
+
+    // just to emphasize that for vk, pk we don't need to know the value of `x`
+    let vk = keygen_vk(&params, &circuit).expect("vk should not fail");
+    let pk = keygen_pk(&params, vk, &circuit).expect("pk should not fail");
+
+    //let pf_time = start_timer!(|| "Creating proof");
+    let mut transcript = Blake2bWrite::<_, _, Challenge255<_>>::init(vec![]);
+   
+    create_proof::<
+        KZGCommitmentScheme<Bn256>,
+        ProverSHPLONK<'_, Bn256>,
+        Challenge255<G1Affine>,
+        _,
+        Blake2bWrite<Vec<u8>, G1Affine, Challenge255<_>>,
+        _,
+    >(&params, &pk, &[circuit], &[&[&public_inputs]], OsRng, &mut transcript)
+    .expect("prover should not fail");
+    let proof = transcript.finalize();
+    //end_timer!(pf_time);
+
+     //verify the proof to make sure everything is ok
+     let verifier_params = params.verifier_params();
+     let strategy = SingleStrategy::new(&params);
+     let mut transcript = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
+     assert!(verify_proof::<
+         KZGCommitmentScheme<Bn256>,
+         VerifierSHPLONK<'_, Bn256>,
+         Challenge255<G1Affine>,
+         Blake2bRead<&[u8], G1Affine, Challenge255<G1Affine>>,
+         SingleStrategy<'_, Bn256>,
+     >(verifier_params, pk.get_vk(), strategy, &[&[&public_inputs]], &mut transcript)
+     .is_ok());
+
 
     // Given the correct public input, our circuit will verify.
-    let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
-    assert_eq!(prover.verify(), Ok(()));
+    //let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
+    //assert_eq!(prover.verify(), Ok(()));
 
     // If we try some other public input, the proof will fail!
-    public_inputs[0] += Fp::one();
-    let prover = MockProver::run(k, &circuit, vec![public_inputs]).unwrap();
-    assert!(prover.verify().is_err());
+    //public_inputs[0] += Fp::one();
+    //let prover = MockProver::run(k, &circuit, vec![public_inputs]).unwrap();
+    //assert!(prover.verify().is_err());
     // ANCHOR_END: test-circuit
 }

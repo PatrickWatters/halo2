@@ -70,10 +70,11 @@ log = "0.4.8"
 serde = { version = "1.0", features = ["derive"] }
 csv = "1.1"
 chrono = "0.4.31"
-
+serde_json = "1"
 # Developer tooling dependencies
 plotters = { version = "0.3.0", optional = true }
 tabbycat = { version = "0.1", features = ["attributes"], optional = true }
+indexmap = "1.7.0"
 
 [dev-dependencies]
 assert_matches = "1.5"
@@ -92,7 +93,7 @@ getrandom = { version = "0.2", features = ["js"] }
 
 [features]
 #default = ["batch", "logging"]
-default = ["batch","opencl"]
+default = ["batch","opencl", "trace"]
 
 dev-graph = ["plotters", "tabbycat"]
 gadget-traces = ["backtrace"]
@@ -103,7 +104,7 @@ circuit-params = []
 cuda=["ec-gpu-gen","ec-gpu", "fs2"]
 opencl=["ec-gpu-gen","ec-gpu", "fs2"]
 logging=["ec-gpu-gen","ec-gpu", "fs2"]
-
+trace = []
 [lib]
 bench = false
 

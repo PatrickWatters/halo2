@@ -8,6 +8,11 @@ use std::ops::RangeTo;
 use std::sync::atomic::AtomicUsize;
 use std::time::Instant;
 use std::{collections::HashMap, iter, mem, sync::atomic::Ordering};
+use indexmap::IndexMap;
+
+use std::fs::{self, OpenOptions};
+use std::{marker::PhantomData, fs::File};
+use std::io::{self, Write};
 
 use super::{
     circuit::{
@@ -35,18 +40,76 @@ use crate::{
 };
 use group::prime::PrimeCurveAffine;
 
-#[derive(Default)]
-struct ProverInfoCollector {
-    prover_duration: String,
-    degree_of_instance_polys: Vec<String>,
-    degree_of_advice_polys: Vec<String> // Change to Vec<i32> for storing a vector of integers
+#[derive(Default, Clone, Debug)]
+pub struct ProverExecutionTrace {
+
+    eval_domain_dict: IndexMap<String, String>,
+    cs_dict: IndexMap<String, String>,
+    eval_dict: IndexMap<String, String>,
+    polys_dict: IndexMap<String, String>,
+
+    advice_dict: IndexMap<String, String>,
+    instance_dict: IndexMap<String, String>,
+    challenges_dict: IndexMap<String, String>,
+
+    //execution_trace_dict.insert("EvaluationDomain".to_string(), pk.vk.domain.clone().as_dict());
+    //execution_trace_dict.insert("ConstraintSystem".to_string(), cs_dict);
+    
 }
+
+impl ProverExecutionTrace {
+    // Function to do something with eval_domain_dict
+    fn flush_trace_to_file(&mut self) {
+        
+        let folder_path = "C:\\Users\\pw\\projects\\dist-zkml\\trace";
+        
+        // Create the folder if it doesn't exist
+        if !std::path::Path::new(folder_path).exists() {
+            match fs::create_dir(folder_path) {
+                Ok(_) => println!("Folder created successfully"),
+                Err(e) => panic!("Failed to create folder: {}", e),
+            }
+        }
+
+        let file_path = "C:\\Users\\pw\\projects\\dist-zkml\\trace\\circuit_trace.txt";
+ 
+
+        let mut file = match fs::File::create(file_path) {
+            Ok(file) => file,
+            Err(e) => todo!(),
+        };
+        
+        let mut execution_trace_dict: IndexMap<String, IndexMap<String, String>> = IndexMap::new();
+        execution_trace_dict.insert("EvaluationDomain".to_string(), self.eval_domain_dict.clone());
+        execution_trace_dict.insert("ConstraintSystem".to_string(), self.cs_dict.clone());
+        execution_trace_dict.insert("Evaluator".to_string(), self.eval_dict.clone());
+        execution_trace_dict.insert("Polys".to_string(), self.polys_dict.clone());
+        execution_trace_dict.insert("Advice".to_string(), self.advice_dict.clone());
+        execution_trace_dict.insert("Instance".to_string(), self.instance_dict.clone());
+        execution_trace_dict.insert("Challenges".to_string(), self.challenges_dict.clone());
+
+        // execution_trace_dict.insert("Advice".to_string(), self.advice_dict.clone());
+        // execution_trace_dict.insert("Instance".to_string(), self.instance_dict.clone());
+        // execution_trace_dict.insert("Challenges".to_string(), self.challenges_dict.clone());
+        // execution_trace_dict.insert("EvaluationPolys".to_string(), self.polys_dict.clone());
+        // execution_trace_dict.insert("CustomGateEvaluations".to_string(), self.eval_custom_gate_evaluations.clone());
+        // execution_trace_dict.insert("EvalationValues".to_string(), self.eval_values_dict.clone());
+        writeln!(file, "{:?}", execution_trace_dict).expect("Failed to write to file");
+
+
+
+    }
+
+}
+
+
+
 
 /// This creates a proof for the provided `circuit` when given the public
 /// parameters `params` and the proving key [`ProvingKey`] that was
 /// generated previously for the same circuit. The provided `instances`
 /// are zero-padded internally.
-/// 
+///
 pub fn create_proof<
     'params,
     Scheme: CommitmentScheme,
@@ -66,13 +129,44 @@ pub fn create_proof<
 where
     Scheme::Scalar: WithSmallOrderMulGroup<3> + FromUniformBytes<64>,
 {
-    for instance in instances.iter() {
+
+    let mut execution_trace = ProverExecutionTrace::default();
+
+    #[cfg(feature = "trace")]
+    {
+        execution_trace.eval_domain_dict = pk.vk.domain.clone().as_dict();
+        execution_trace.cs_dict.insert("num_fixed_columns".to_string(), pk.vk.cs.num_fixed_columns().to_string());
+        execution_trace.cs_dict.insert("num_advice_columns".to_string(), pk.vk.cs.num_advice_columns().to_string());
+        execution_trace.cs_dict.insert("num_instance_columns".to_string(), pk.vk.cs.num_instance_columns().to_string());
+        execution_trace.cs_dict.insert("num_selectors".to_string(), pk.vk.cs.num_selectors().to_string());
+        execution_trace.cs_dict.insert("num_challenges".to_string(), pk.vk.cs.num_challenges().to_string());
+        execution_trace.cs_dict.insert("cs_degree".to_string(), pk.vk.cs.degree().to_string());
+        execution_trace.cs_dict.insert("minimum_rows".to_string(), pk.vk.cs.minimum_rows().to_string());
+        execution_trace.cs_dict.insert("num_gates".to_string(), pk.vk.cs.gates.len().to_string());
+        execution_trace.cs_dict.insert("num_fixed_queries".to_string(), pk.vk.cs.fixed_queries().len().to_string());
+        execution_trace. cs_dict.insert("gates".to_string(), format!("{:?}",pk.vk.cs.gates));
+        execution_trace.cs_dict.insert("advice_queries".to_string(), format!("{:?}",pk.vk.cs.advice_queries));
+        execution_trace.cs_dict.insert("lookups".to_string(), format!("{:?}",pk.vk.cs.lookups));
+        execution_trace.eval_dict.insert("custom_gates".to_string(), format!("{:?}",pk.ev.custom_gates));
+        execution_trace.eval_dict.insert("lookups".to_string(), format!("{:?}",pk.ev.lookups));
+        execution_trace.eval_dict.insert("shuffles".to_string(), format!("{:?}",pk.ev.shuffles));
+        execution_trace.polys_dict.insert("selectors".to_string(), format!("{:?}",pk.vk.selectors));
+        execution_trace.polys_dict.insert("l0".to_string(), format!("{:?}",pk.l0));
+        execution_trace.polys_dict.insert("l_last".to_string(), format!("{:?}",pk.l_last));
+        execution_trace.polys_dict.insert("l_active_row".to_string(), format!("{:?}",pk.l_active_row));
+        execution_trace.polys_dict.insert("fixed_polys".to_string(), format!("{:?}",pk.fixed_polys));
+        execution_trace.polys_dict.insert("fixed_cosets".to_string(), format!("{:?}",pk.fixed_cosets));
+
+        execution_trace.flush_trace_to_file()
+
+    }
+
+
+     for instance in instances.iter() {
         if instance.len() != pk.vk.cs.num_instance_columns {
             return Err(Error::InvalidInstances);
         }
     }
-
-    let mut prover_info_collector: ProverInfoCollector = Default::default();
 
     // Hash verification key into transcript
     pk.vk.hash_into(transcript)?;
@@ -114,7 +208,6 @@ where
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
-
             if P::QUERY_INSTANCE {
                 let instance_commitments_projective: Vec<_> = instance_values
                     .iter()
@@ -142,30 +235,12 @@ where
                 })
                 .collect();
 
-            let mut instance_counter =1;
-            for poly in &instance_polys {
-                println!("Degree of instance poly {}: {:?}", instance_counter, poly.num_coeffs()-1);
-                
-                prover_info_collector.degree_of_instance_polys.push(format!(
-                    "Degree of instance poly {}: {:?}",
-                    instance_counter,
-                    poly.num_coeffs() - 1
-                ));
-                
-                instance_counter += 1;
-
-            }
-
             Ok(InstanceSingle {
                 instance_values,
                 instance_polys,
             })
-
-
-
         })
         .collect::<Result<Vec<_>, _>>()?;
-
 
     #[derive(Clone)]
     struct AdviceSingle<C: CurveAffine, B: Basis> {
@@ -383,19 +458,20 @@ where
                         })
                         .collect(),
                 );
-
+   
                 // Add blinding factors to advice columns
                 for advice_values in &mut advice_values {
                     for cell in &mut advice_values[unusable_rows_start..] {
                         *cell = Scheme::Scalar::random(&mut rng);
                     }
                 }
-
+   
                 // Compute commitments to advice column polynomials
                 let blinds: Vec<_> = advice_values
                     .iter()
                     .map(|_| Blind(Scheme::Scalar::random(&mut rng)))
                     .collect();
+
                 let advice_commitments_projective: Vec<_> = advice_values
                     .iter()
                     .zip(blinds.iter())
@@ -434,10 +510,37 @@ where
         let challenges = (0..meta.num_challenges)
             .map(|index| challenges.remove(&index).unwrap())
             .collect::<Vec<_>>();
-               
-        (advice, challenges)
 
+        (advice, challenges)
     };
+
+    #[cfg(feature = "trace")]
+    {
+        for (iteration_count, i) in instance.iter().enumerate() {    
+            execution_trace.instance_dict.insert(
+                format!("instance_{}_values", iteration_count),
+                format!("{:?}", i.instance_values.clone()),
+            );
+            execution_trace.instance_dict.insert(
+                format!("instance_{}_polys", iteration_count),
+                format!("{:?}", i.instance_polys.clone()),
+            );
+        }
+
+        for (iteration_count, i) in advice.iter().enumerate() {    
+            execution_trace.advice_dict.insert(
+                format!("advice_{}_polys", iteration_count),
+                format!("{:?}", i.advice_polys.clone()),
+            );
+            execution_trace.advice_dict.insert(
+                format!("advice_{}_blinds", iteration_count),
+                format!("{:?}", i.advice_blinds.clone()),
+            );
+        }
+
+        execution_trace.flush_trace_to_file()
+    }
+
 
     // Sample theta challenge for keeping lookup columns linearly independent
     let theta: ChallengeTheta<_> = transcript.squeeze_challenge_scalar();
@@ -540,6 +643,7 @@ where
     // Obtain challenge for keeping all separate gates linearly independent
     let y: ChallengeY<_> = transcript.squeeze_challenge_scalar();
 
+
     // Calculate the advice polys
     let advice: Vec<AdviceSingle<Scheme::Curve, Coeff>> = advice
         .into_iter()
@@ -559,6 +663,17 @@ where
         )
         .collect();
 
+
+    #[cfg(feature = "trace")]
+    {
+        execution_trace.challenges_dict.insert("y".to_string(),format!("{:?}", y.clone()));
+        execution_trace.challenges_dict.insert("gamma".to_string(),format!("{:?}", gamma.clone()));
+        execution_trace.challenges_dict.insert("beta".to_string(),format!("{:?}", beta.clone()));
+        execution_trace.challenges_dict.insert("theta".to_string(),format!("{:?}", theta.clone()));
+        execution_trace.flush_trace_to_file()
+    }
+
+
     // Evaluate the h(X) polynomial
     let h_poly = pk.ev.evaluate_h(
         pk,
@@ -577,10 +692,15 @@ where
         *theta,
         &lookups,
         &shuffles,
-        &permutations,
+        &permutations
     );
 
-    
+    #[cfg(feature = "trace")]
+    {
+        execution_trace.flush_trace_to_file()
+    }
+
+
     // Construct the vanishing argument's h(X) commitments
     let vanishing = vanishing.construct(params, domain, h_poly, &mut rng, transcript)?;
 

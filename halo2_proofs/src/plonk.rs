@@ -41,6 +41,7 @@ pub use prover::*;
 pub use verifier::*;
 
 use evaluation::Evaluator;
+use std::collections::HashMap;
 use std::io;
 
 /// This is a verifying key which allows for the verification of proofs for a
@@ -396,6 +397,12 @@ where
             params,
         )
     }
+
+
+
+   
+
+
 }
 
 impl<C: CurveAffine> VerifyingKey<C> {

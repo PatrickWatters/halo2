@@ -1,6 +1,7 @@
 use crate::multicore;
 use crate::plonk::lookup::prover::Committed;
 use crate::plonk::permutation::Argument;
+
 use crate::plonk::{lookup, permutation, AdviceQuery, Any, FixedQuery, InstanceQuery, ProvingKey};
 use crate::poly::Basis;
 use crate::{
@@ -19,6 +20,8 @@ use group::{
 };
 use std::any::TypeId;
 use std::convert::TryInto;
+use std::fs::{self, File, OpenOptions};
+use std::marker::PhantomData;
 use std::num::ParseIntError;
 use std::slice;
 use std::{
@@ -26,13 +29,18 @@ use std::{
     iter,
     ops::{Index, Mul, MulAssign},
 };
-
+use std::io::{self, Write};
+//use std::collections::HashMap;
+use indexmap::IndexMap;
 use super::{shuffle, ConstraintSystem, Expression};
 
 /// Return the index in the polynomial of size `isize` after rotation `rot`.
 fn get_rotation_idx(idx: usize, rot: i32, rot_scale: i32, isize: i32) -> usize {
     (((idx as i32) + (rot * rot_scale)).rem_euclid(isize)) as usize
 }
+
+
+
 
 /// Value used in a calculation
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd)]
@@ -123,7 +131,7 @@ pub enum  Calculation {
     Negate(ValueSource),
     /// This is Horner's rule: `val = a; val = val * c + b[]`
     Horner(ValueSource, Vec<ValueSource>, ValueSource),
-    /// This is a simple assignment
+    /// This is a simple as: ProverExecutionTracesignment
     Store(ValueSource),
 }
 
@@ -143,6 +151,7 @@ impl Calculation {
         theta: &F,
         y: &F,
         previous_value: &F,
+        caclualtions_dict: &mut IndexMap<String, String>,
     ) -> F {
         let get_value = |value: &ValueSource| {
             value.get(
@@ -160,6 +169,53 @@ impl Calculation {
                 previous_value,
             )
         };
+
+
+        match self {
+            Calculation::Add(a, b) => {
+                caclualtions_dict.insert("Add".to_string(), format!("{:?} + {:?} = {:?}", get_value(a), get_value(b), get_value(a) + get_value(b)));
+                //writeln!(file, "\t\t{:?} + {:?} = {:?}", get_value(a), get_value(b), get_value(a) + get_value(b)).expect("Failed to write to file");
+            },
+            Calculation::Sub(a, b) => {
+                caclualtions_dict.insert("Sub".to_string(), format!("{:?} - {:?} = {:?}", get_value(a), get_value(b), get_value(a) - get_value(b)));
+                //writeln!(file, "\t\t{:?} - {:?} = {:?}", get_value(a), get_value(b), get_value(a) - get_value(b)).expect("Failed to write to file");
+            },
+            Calculation::Mul(a, b) => {
+                caclualtions_dict.insert("Mul".to_string(), format!("{:?} * {:?} = {:?}", get_value(a), get_value(b), get_value(a) * get_value(b)));
+                //writeln!(file, "\t\t{:?} * {:?} = {:?}", get_value(a), get_value(b), get_value(a) * get_value(b)).expect("Failed to write to file");
+            },
+            Calculation::Square(v) => {
+                caclualtions_dict.insert("Square".to_string(), format!("{:?} = {:?}", get_value(v), get_value(v).square()));
+                //writeln!(file, "\t\tsquare {:?} = {:?}", get_value(v), get_value(v).square()).expect("Failed to write to file");
+            },
+            Calculation::Double(v) => {
+                caclualtions_dict.insert("Double".to_string(), format!("{:?} = {:?}", get_value(v), get_value(v).double()));
+                //writeln!(file, "\t\tdouble {:?} = {:?}", get_value(v), get_value(v).double()).expect("Failed to write to file");
+            },
+            Calculation::Negate(v) => {
+                caclualtions_dict.insert("Negate".to_string(), format!("{:?} = {:?}", get_value(v), -get_value(v)));
+                //writeln!(file, "\t\tNegate {:?} = {:?}", get_value(v), -get_value(v)).expect("Failed to write to file");
+            },
+            Calculation::Horner(start_value, parts, factor) => {
+                let factor_value = get_value(factor);
+                let mut value = get_value(start_value);
+                for part in parts.iter() {
+                    let part_value = get_value(part);
+                    caclualtions_dict.insert("Horner".to_string(), format!("{:?} = {:?} * {:?} + {:?} = {:?}", value, value, factor_value, part_value, value * factor_value + part_value));
+                    //writeln!(file, "\t\t{:?} = {:?} * {:?} + {:?} = {:?}", value, value, factor_value, part_value, value * factor_value + part_value).expect("Failed to write to file");
+                    value = value * factor_value + part_value;
+                    //println!("{:?} * {:?} + {:?} = {:?}", vc, factor, tv, value);
+
+                }
+            },
+        
+            Calculation::Store(v) => {
+                caclualtions_dict.insert("Store".to_string(), format!("{:?} = {:?}", get_value(v), get_value(v)));
+                //writeln!(file, "\t\tStore {:?} = {:?}", get_value(v), get_value(v)).expect("Failed to write to file");
+            },
+        }
+    
+
         match self {
             Calculation::Add(a, b) => get_value(a) + get_value(b),
             Calculation::Sub(a, b) => get_value(a) - get_value(b),
@@ -175,7 +231,6 @@ impl Calculation {
                     //let vc = value.clone();
                     value = value * factor + get_value(part);
                     //println!("{:?} * {:?} + {:?} = {:?}", vc, factor, tv, value);
-
                 }
                 value
             }
@@ -193,6 +248,7 @@ pub struct Evaluator<C: CurveAffine> {
     pub lookups: Vec<GraphEvaluator<C>>,
     ///  Shuffle evalution
     pub shuffles: Vec<GraphEvaluator<C>>,
+
 }
 
 /// GraphEvaluator
@@ -315,6 +371,16 @@ impl<C: CurveAffine> Evaluator<C> {
 
         ev
     }
+    
+    pub fn write_to_trace_file(&self, message: &str){
+
+        let mut file = match OpenOptions::new().write(true).create(true).append(true).
+        open("C:\\Users\\pw\\projects\\dist-zkml\\trace\\eval_h_trace.txt") {
+            Ok(file) => file,
+                Err(e) =>todo!()}; 
+             writeln!(file, "{}", &message).expect("Failed to write to file");
+    }
+
 
     /// Evaluate h poly
     pub(in crate::plonk) fn evaluate_h(
@@ -330,6 +396,7 @@ impl<C: CurveAffine> Evaluator<C> {
         lookups: &[Vec<lookup::prover::Committed<C>>],
         shuffles: &[Vec<shuffle::prover::Committed<C>>],
         permutations: &[permutation::prover::Committed<C>],
+
     ) -> Polynomial<C::ScalarExt, ExtendedLagrangeCoeff> {
         let domain = &pk.vk.domain;
         let size = domain.extended_len();
@@ -342,6 +409,8 @@ impl<C: CurveAffine> Evaluator<C> {
         let l_last = &pk.l_last;
         let l_active_row = &pk.l_active_row;
         let p = &pk.vk.cs.permutation;
+        
+
 
         // Calculate the advice and instance cosets
         let advice: Vec<Vec<Polynomial<C::Scalar, ExtendedLagrangeCoeff>>> = advice_polys
@@ -353,6 +422,16 @@ impl<C: CurveAffine> Evaluator<C> {
                     .collect()
             })
             .collect();
+        
+        #[cfg(feature = "trace")]
+        {
+            let eval_h_path = "C:\\Users\\pw\\projects\\dist-zkml\\trace\\eval_h_trace.txt";
+
+            if fs::metadata(&eval_h_path).is_ok() {
+                let _ = fs::remove_file(&eval_h_path);
+            }
+        }
+
         let instance: Vec<Vec<Polynomial<C::Scalar, ExtendedLagrangeCoeff>>> = instance_polys
             .iter()
             .map(|instance_polys| {
@@ -362,10 +441,26 @@ impl<C: CurveAffine> Evaluator<C> {
                     .collect()
             })
             .collect();
-        println!("Advice {:?}",advice);
-
+        
+      
         let mut values = domain.empty_extended();
-
+       
+        #[cfg(feature = "trace")]
+        {  
+            //self.write_to_trace_file(&format!("{:?}",("advice_coset".to_string() : format!("{:?}",advice))) 
+            self.write_to_trace_file(&format!("{:?}", (
+                "advice_coset",
+                format!(":{:?}", advice)
+            )));
+            self.write_to_trace_file(&format!("{:?}", (
+                "instance_coset",
+                format!(":{:?}", instance)
+            )));
+            self.write_to_trace_file(&format!("{:?}", (
+                "initial_values",
+                format!(":{:?}", values)
+            )));
+        }
         // Core expression evaluations
         //let num_threads = multicore::current_num_threads();
         let num_threads = 1;
@@ -378,33 +473,55 @@ impl<C: CurveAffine> Evaluator<C> {
         {
             // Custom gates
             multicore::scope(|scope| {
+
                 let chunk_size = (size + num_threads - 1) / num_threads;
                 for (thread_idx, values) in values.chunks_mut(chunk_size).enumerate() {
                     let start = thread_idx * chunk_size;
                     scope.spawn(move |_| {
+                        
                         let mut eval_data = self.custom_gates.instance();
                         for (i, value) in values.iter_mut().enumerate() {
                             let idx = start + i;
-                            *value = self.custom_gates.evaluate(
-                                &mut eval_data,
-                                fixed,
-                                advice,
-                                instance,
-                                challenges,
-                                &beta,
-                                &gamma,
-                                &theta,
-                                &y,
-                                value,
-                                idx,
-                                rot_scale,
-                                isize,
-                            );
+                            // Assuming `self.custom_gates.evaluate` returns `EvaluationResult<C>`
+                            let evaluation_result = self.custom_gates.evaluate(
+                            &mut eval_data,
+                            fixed,
+                            advice,
+                            instance,
+                            challenges,
+                            &beta,
+                            &gamma,
+                            &theta,
+                            &y,
+                            &value.clone(),
+                            idx,
+                            rot_scale,
+                            isize,
+                        );
+                                      // Set *value to the result_scalar field of the EvaluationResult
+                        *value = evaluation_result.result_scalar;
+                        #[cfg(feature = "trace")]
+                        {  
+                            self.write_to_trace_file(&format!("{:?}", (
+                                format!("cg_eval_{:?}", idx),
+                                format!("{:?}", evaluation_result.evaluations_dict)
+                            )));
+                        }
                         }
                     });
                 }
             });
 
+            #[cfg(feature = "trace")]
+            {  
+                self.write_to_trace_file(&format!("{:?}", (
+                    "values_after_cg",
+                    format!(":{:?}", values)
+                )));
+            }
+
+
+    
             // Permutations
             let sets = &permutation.sets;
             if !sets.is_empty() {
@@ -487,6 +604,14 @@ impl<C: CurveAffine> Evaluator<C> {
                 });
             }
 
+            #[cfg(feature = "trace")]
+            {  
+                self.write_to_trace_file(&format!("{:?}", (
+                    "values_after_permuttaions",
+                    format!(":{:?}", values)
+                )));
+            }
+
             // Lookups
             for (n, lookup) in lookups.iter().enumerate() {
                 // Polynomials required for this lookup.
@@ -504,12 +629,13 @@ impl<C: CurveAffine> Evaluator<C> {
 
                 // Lookup constraints
                 parallelize(&mut values, |values, start| {
+
                     let lookup_evaluator = &self.lookups[n];
                     let mut eval_data = lookup_evaluator.instance();
                     for (i, value) in values.iter_mut().enumerate() {
                         let idx = start + i;
 
-                        let table_value = lookup_evaluator.evaluate(
+                        let table_value_result = lookup_evaluator.evaluate(
                             &mut eval_data,
                             fixed,
                             advice,
@@ -524,6 +650,16 @@ impl<C: CurveAffine> Evaluator<C> {
                             rot_scale,
                             isize,
                         );
+                        // Set table_value to the result_scalar field of the EvaluationResult
+                        let table_value = table_value_result.result_scalar;
+
+                        #[cfg(feature = "trace")]
+                        {  
+                            self.write_to_trace_file(&format!("{:?}", (
+                                format!("lookup_eval_{:?}", idx),
+                                format!("{:?}", table_value_result.evaluations_dict)
+                            )));
+                        }
 
                         let r_next = get_rotation_idx(idx, 1, rot_scale, isize);
                         let r_prev = get_rotation_idx(idx, -1, rot_scale, isize);
@@ -562,6 +698,14 @@ impl<C: CurveAffine> Evaluator<C> {
                 });
             }
 
+            #[cfg(feature = "trace")]
+            {  
+                self.write_to_trace_file(&format!("{:?}", (
+                    "values_after_lookup",
+                    format!(":{:?}", values)
+                )));
+            }
+
             // Shuffle constraints
             for (n, shuffle) in shuffles.iter().enumerate() {
                 let product_coset = pk.vk.domain.coeff_to_extended(shuffle.product_poly.clone());
@@ -572,10 +716,12 @@ impl<C: CurveAffine> Evaluator<C> {
                     let shuffle_evaluator = &self.shuffles[2 * n + 1];
                     let mut eval_data_input = shuffle_evaluator.instance();
                     let mut eval_data_shuffle = shuffle_evaluator.instance();
+                  
                     for (i, value) in values.iter_mut().enumerate() {
+
                         let idx = start + i;
 
-                        let input_value = input_evaluator.evaluate(
+                        let input_value_result = input_evaluator.evaluate(
                             &mut eval_data_input,
                             fixed,
                             advice,
@@ -590,8 +736,11 @@ impl<C: CurveAffine> Evaluator<C> {
                             rot_scale,
                             isize,
                         );
-
-                        let shuffle_value = shuffle_evaluator.evaluate(
+                        
+                        // Set input_value to the result_scalar field of the EvaluationResult
+                        let input_value = input_value_result.result_scalar;
+                        // For shuffle_value
+                        let shuffle_value_result = shuffle_evaluator.evaluate(
                             &mut eval_data_shuffle,
                             fixed,
                             advice,
@@ -606,6 +755,9 @@ impl<C: CurveAffine> Evaluator<C> {
                             rot_scale,
                             isize,
                         );
+
+                        // Set shuffle_value to the result_scalar field of the EvaluationResult
+                        let shuffle_value = shuffle_value_result.result_scalar;
 
                         let r_next = get_rotation_idx(idx, 1, rot_scale, isize);
 
@@ -622,6 +774,14 @@ impl<C: CurveAffine> Evaluator<C> {
                                     - product_coset[idx] * input_value)
                     }
                 });
+            }
+
+            #[cfg(feature = "trace")]
+            {  
+                self.write_to_trace_file(&format!("{:?}", (
+                    "values_final",
+                    format!(":{:?}", values)
+                )));
             }
         }
         values
@@ -795,6 +955,7 @@ impl<C: CurveAffine> GraphEvaluator<C> {
         }
     }
 
+
     /// Creates a new evaluation structure
     pub fn instance(&self) -> EvaluationData<C> {
         EvaluationData {
@@ -818,14 +979,21 @@ impl<C: CurveAffine> GraphEvaluator<C> {
         idx: usize,
         rot_scale: i32,
         isize: i32,
-    ) -> C::ScalarExt {
+        ) ->  EvaluationResult<C>{
+
+
         // All rotation index values
         for (rot_idx, rot) in self.rotations.iter().enumerate() {
             data.rotations[rot_idx] = get_rotation_idx(idx, *rot, rot_scale, isize);
         }
 
+        let mut eval_dict: IndexMap<String, String> = IndexMap::new();
+        
         // All calculations, with cached intermediate results
-        for calc in self.calculations.iter() {
+        for (iteration_count, calc) in self.calculations.iter().enumerate() {
+            
+            let mut caclualtions_dict: IndexMap<String, String> = IndexMap::new();
+
             data.intermediates[calc.target] = calc.calculation.evaluate(
                 &data.rotations,
                 &self.constants,
@@ -839,23 +1007,27 @@ impl<C: CurveAffine> GraphEvaluator<C> {
                 theta,
                 y,
                 previous_value,
+                &mut caclualtions_dict, // Pass mutable reference
             );
-        }
 
-        for calc in self.calculations.iter() {
-            let calc_result = data.intermediates[calc.target];
-            println!("{:?}, Calc Target: {:?}, Calc Result: {:?}",idx, calc.target, calc_result);
-            
-        }
 
-        // Return the result of the last calculation (if any)
+            eval_dict.insert(format!("{:?}", calc.clone()), format!("{:?}",caclualtions_dict));
+        }
+          // Return the result of the last calculation (if any)
+
+          
         if let Some(calc) = self.calculations.last() {
-            data.intermediates[calc.target]
-        } else {
-            C::ScalarExt::ZERO
+            eval_dict.insert("Result".to_string(), format!("{:?}",data.intermediates[calc.target]));
+             EvaluationResult {result_scalar:data.intermediates[calc.target],evaluations_dict: eval_dict }}
+            else 
+        {
+            eval_dict.insert("Result".to_string(), format!("{:?}",C::ScalarExt::ZERO));
+            EvaluationResult {result_scalar:C::ScalarExt::ZERO,evaluations_dict: eval_dict }}
+
         }
     }
-}
+    
+
 
 /// Simple evaluation of an expression
 pub fn evaluate<F: Field, B: Basis>(
@@ -896,4 +1068,10 @@ pub fn evaluate<F: Field, B: Basis>(
         }
     });
     values
+}
+
+
+pub struct EvaluationResult<C: CurveAffine> {
+    pub result_scalar: C::ScalarExt,
+    pub evaluations_dict: IndexMap<String, String>, // Add other fields as needed
 }
