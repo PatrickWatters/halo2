@@ -1,0 +1,4 @@
+size,log_n,fft_type,total_duration (ms)
+16,4,cpu,0.000492
+16,4,cpu,0.0021611
+16,4,cpu,0.0017719

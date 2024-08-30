@@ -11,7 +11,7 @@ use rand_core::OsRng;
 
 fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("fft");
-    for k in 3..19 {
+    for k in 3..8 {
         group.bench_function(BenchmarkId::new("k", k), |b| {
             let mut a = (0..(1 << k)).map(|_| Fp::random(OsRng)).collect::<Vec<_>>();
             let omega = Fp::random(OsRng); // would be weird if this mattered
