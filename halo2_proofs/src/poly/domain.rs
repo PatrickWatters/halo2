@@ -1,6 +1,10 @@
 //! Contains utilities for performing polynomial arithmetic over an evaluation
 //! domain that is of a suitable size for the application.
-
+// #[cfg(feature = "icicle_gpu")]
+// use crate::{
+//     arithmetic::{best_fft, parallelize, best_multiexp_gpu},
+//     plonk::Assigned,
+// };
 use crate::{
     arithmetic::{best_fft, parallelize},
     plonk::Assigned,
@@ -8,7 +12,8 @@ use crate::{
 
 use super::{Coeff, ExtendedLagrangeCoeff, LagrangeCoeff, Polynomial, Rotation};
 use ff::WithSmallOrderMulGroup;
-use group::ff::{BatchInvert, Field};
+use group::{ff::{BatchInvert, Field}, Group};
+use halo2curves::CurveAffine;
 
 use std::marker::PhantomData;
 
@@ -564,6 +569,71 @@ fn test_l_i() {
     }
 }
 
+#[test]
+fn test_msm()
+{   use crate::poly::EvaluationDomain;
+    // use ark_std::{end_timer, start_timer};
+    use halo2curves::bn256::{Bn256, Fr, G1Affine, G1}; // Replace with appropriate curve
+    use std::time::Instant;
+    use rand_core::OsRng;
+    use rand_chacha::ChaChaRng;
+    use rand_core::{SeedableRng, RngCore};
+    use group::{Curve, prime::PrimeCurveAffine}; // For scalar multiplication and identity functions
+    use crate::halo2curves::pairing::Engine;
+    #[cfg(feature = "icicle_gpu")]
+    use crate::{
+        arithmetic::{best_fft, parallelize, best_multiexp_gpu},
+        plonk::Assigned,
+    };
+
+    #[cfg(not(feature = "icicle_gpu"))]
+    use crate::{
+        arithmetic::{best_fft, parallelize, best_multiexp_cpu},
+        plonk::Assigned,
+    };
+
+
+     // Define the range of MSM sizes to test, from 2^10 to 2^16
+     let start_exp = 10;
+     let end_exp = 10;
+    //  let mut rng = OsRng;
+     let seed = [0u8; 32]; // You can change this to any 32-byte array
+     let mut rng = ChaChaRng::from_seed(seed);
+     
+     for k in start_exp..=end_exp {
+        let num_elements = 1 << k;
+        println!("\nTesting with num_elements: {:?}", num_elements);
+        
+        // Generate random coefficients (scalars)
+        let coeffs: Vec<Fr> = (0..num_elements).map(|_| Fr::random(&mut rng)).collect();
+
+        let mut bases = (0..num_elements)
+        .map(|_| G1Affine::random(&mut rng)) // Generate random points for each base
+        .collect::<Vec<_>>();
+        
+
+        // Run the multi-exponentiation using the best_multiexp_cpu function
+        let start_time = Instant::now();
+        #[cfg(not(feature = "icicle_gpu"))]
+        let result = best_multiexp_cpu(&coeffs, &bases);
+        #[cfg(feature = "icicle_gpu")]
+        let result = best_multiexp_gpu(&coeffs, &bases);
+
+        let elapsed_time = start_time.elapsed();
+
+        // Output results for this size
+        println!("num_elements: {}, elapsed time: {:?}, result {:?}", num_elements, elapsed_time, result);
+
+        // // Optional: Verify the result with a serial MSM implementation
+        let mut expected_result = G1::identity();
+        for (base, coeff) in bases.iter().zip(coeffs.iter()) {
+            // Convert base from G1Affine to G1 before multiplication.
+            expected_result +=  G1Affine::from(base * coeff);
+        }
+        assert_eq!(G1Affine::from(result), G1Affine::from(expected_result), "MSM result does not match for size {}", num_elements);
+    }
+}
+
 
 #[test]
 fn test_fft() {
@@ -590,11 +660,41 @@ fn test_fft() {
         let mut prev_fft_coeffs = coeffs.clone();
 
         best_fft(&mut prev_fft_coeffs, domain.get_omega(), log_n);
-        
+        // best_multiexp_gpu(&mut prev_fft_coeffs, domain.get_omega(), log_n);
         let elapsed = timer.elapsed();
         println!("prev_fft degree {} took {:?}", k, elapsed);
     }
 }
+
+
+// #[test]
+// fn test_fft_gpu() {
+//     use crate::poly::EvaluationDomain;
+//     use halo2curves::bn256::Fr;
+//     use rand_core::OsRng;
+
+//     for k in 18..=26 {
+//         let rng = OsRng;
+//         // polynomial degree n = 2^k
+//         let n = 1u64 << k;
+//         let log_n = k; // log_n is just k because n = 2^k
+//         // polynomial coeffs
+//         let coeffs: Vec<_> = (0..n).map(|_| Fr::random(rng)).collect();
+//         // evaluation domain
+//         let domain: EvaluationDomain<Fr> = EvaluationDomain::new(1, k);
+
+//         let message = format!("prev_fft degree {}", k);
+//         // let start = start_timer!(|| message);
+//         let timer =  Instant::now();
+
+//         let mut prev_fft_coeffs = coeffs.clone();
+
+//         best_fft_gpu(&mut prev_fft_coeffs, domain.get_omega(), log_n);
+        
+//         let elapsed = timer.elapsed();
+//         println!("prev_fft degree {} took {:?}", k, elapsed);
+//     }
+// }
 
 
 // fn tes_fft_bn256()

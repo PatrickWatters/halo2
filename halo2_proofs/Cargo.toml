@@ -62,11 +62,10 @@ rand_chacha = "0.3"
 maybe-rayon = { version = "0.1.1"}
 lazy_static = { version = "1", optional = true }
 env_logger = "0.10.0"
-
-ec-gpu-gen = {path = "../ec-gpu-gen", version = "0.7.0"}
-ec-gpu = {version = "0.2.0"}
-rust-gpu-tools = { version = "0.7.0", default-features = false, optional = true }
-ff-cl-gen = { git = 'https://github.com/starslabhq/ff-cl-gen', optional = true,  branch = "gpuFft" }
+# ec-gpu-gen = {path = "../ec-gpu-gen", version = "0.7.0"}
+# ec-gpu = {version = "0.2.0"}
+# rust-gpu-tools = { version = "0.7.0", default-features = false, optional = true }
+# ff-cl-gen = { git = 'https://github.com/starslabhq/ff-cl-gen', optional = true,  branch = "gpuFft" }
 
 # GPU Icicle integration
 icicle = { git = "https://github.com/ingonyama-zk/icicle.git", branch = "rust/large-bucket-factor-msm", optional = true }
@@ -82,8 +81,6 @@ tabbycat = { version = "0.1", features = ["attributes"], optional = true }
 halo2_legacy_pdqsort = { version = "0.1.0", optional = true }
 
 [dev-dependencies]
-ec-gpu-gen = { path = "../ec-gpu-gen", version = "0.7.0" }
-
 assert_matches = "1.5"
 criterion = "0.3"
 gumdrop = "0.8"
@@ -95,7 +92,7 @@ serde_json = "1"
 getrandom = { version = "0.2", features = ["js"] }
 
 [features]
-default = ["batch", "bits", "icicle_gpu", "cuda"]
+default = ["batch", "bits", "icicle_gpu"]
 dev-graph = ["plotters", "tabbycat"]
 test-dev-graph = [
     "dev-graph",
@@ -112,7 +109,6 @@ circuit-params = []
 counter = ["lazy_static"]
 icicle_gpu = ["icicle", "rustacuda"]
 mv-lookup = []
-cuda = ["ec-gpu-gen/cuda", "fs2","blstrs/gpu"]
 # cost-estimator = ["serde", "serde_derive"]
 cost-estimator = []
 

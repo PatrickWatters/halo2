@@ -8,6 +8,13 @@ use group::{
     Curve, Group, GroupOpsOwned, ScalarMulOwned,
 };
 pub use halo2curves::{CurveAffine, CurveExt};
+// #[cfg(any(feature = "cuda", feature = "opencl"))]
+// use ec_gpu_gen::fft::FftKernel;
+// #[cfg(any(feature = "cuda", feature = "opencl"))]
+// use crate::gpu;
+// use ec_gpu_gen::fft_cpu;
+// use ec_gpu_gen::threadpool::Worker;
+
 
 #[cfg(feature = "icicle_gpu")]
 use super::icicle;
@@ -240,19 +247,19 @@ pub fn small_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::C
     acc
 }
 
-/// Performs a FFFT operation on GPU
-#[cfg(feature = "icicle_gpu")]
-pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
-    a: &mut [G],
-    omega: Scalar,
-    log_n: u32,
-) {
-    icicle::ntt::
-    icicle::fft_on_device::<Scalar, G>(a, omega, log_n);
-    let d = 1 << log_n;
-    // Using default config
-    let cfg = ntt::NTTConfig::<Bn254ScalarField>::default();
-}
+// /// Performs a FFFT operation on GPU
+// #[cfg(feature = "icicle_gpu")]
+// pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
+//     a: &mut [G],
+//     omega: Scalar,
+//     log_n: u32,
+// ) {
+//     icicle::ntt::
+//     icicle::fft_on_device::<Scalar, G>(a, omega, log_n);
+//     let d = 1 << log_n;
+//     // Using default config
+//     let cfg = ntt::NTTConfig::<Bn254ScalarField>::default();
+// }
 
 #[cfg(feature = "icicle_gpu")]
 /// Performs a multi-exponentiation operation on GPU using Icicle library
@@ -313,7 +320,33 @@ pub fn best_multiexp_cpu<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C
 
 }
 
+// /// Wrap `gpu_fft_multiple`
+// #[cfg(feature = "gpu")]
+// pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
+//     polys: &mut [&mut [G]],
+//     omega: Scalar,
+//     log_n: u32,
+// ) -> gpu::GPUResult<()> {
 
+//     let d = 1 << log_n;
+
+//     let mut now = Instant::now();
+//     let mut kern: Option<LockedMultiFFTKernel<_,_>> = Some(LockedMultiFFTKernel::<_,_>::new(log_n as usize, false));
+//     let create_kern_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+//     println!("create_kern took {}ms.", create_kern_dur);
+    
+//     //now = Instant::now();  
+//     if let Some(ref mut kern) = kern {
+//         if kern
+//             .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| k.fft_multiple(polys, &omega, log_n))
+//             .is_ok()
+//         {
+//             //println!("gpu_fft_multiple_total took {}ms.", now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64);
+//             return Ok(());
+//         }
+//     } 
+//     Ok(())
+// }
 
 
 /// Performs a radix-$2$ Fast-Fourier Transformation (FFT) on a vector of size
