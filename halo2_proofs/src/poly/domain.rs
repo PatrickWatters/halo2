@@ -563,3 +563,93 @@ fn test_l_i() {
         assert_eq!(eval_polynomial(&l[(8 - i) % 8][..], x), evaluations[7 - i]);
     }
 }
+
+
+#[test]
+fn test_fft() {
+    use crate::poly::EvaluationDomain;
+    // use ark_std::{end_timer, start_timer};
+    use std::time::Instant;
+    use halo2curves::bn256::Fr;
+    use rand_core::OsRng;
+
+    for k in 16..=20 {
+        let rng = OsRng;
+        // polynomial degree n = 2^k
+        let n = 1u64 << k;
+        let log_n = k; // log_n is just k because n = 2^k
+        // polynomial coeffs
+        let coeffs: Vec<_> = (0..n).map(|_| Fr::random(rng)).collect();
+        // evaluation domain
+        let domain: EvaluationDomain<Fr> = EvaluationDomain::new(1, k);
+
+        let message = format!("prev_fft degree {}", k);
+        // let start = start_timer!(|| message);
+        let timer =  Instant::now();
+
+        let mut prev_fft_coeffs = coeffs.clone();
+
+        best_fft(&mut prev_fft_coeffs, domain.get_omega(), log_n);
+        
+        let elapsed = timer.elapsed();
+        println!("prev_fft degree {} took {:?}", k, elapsed);
+    }
+}
+
+
+// fn tes_fft_bn256()
+// {  
+//     use crate::halo2curves::bn256::Fr;
+//     use std::time::Instant;
+//     use rand_core::OsRng;
+//     // use ec_gpu_gen::fft_cpu::serial_fft;
+//     // use ec_gpu_gen::fft_cpu::parallel_fft;
+
+//     //fil_logger::maybe_init();
+//     let mut rng = OsRng;
+
+//     let worker = Worker::new();
+//     let log_threads = worker.log_num_threads();
+//     let devices = Device::all();
+//     let programs = devices
+//         .iter()
+//         .map(|device| ec_gpu_gen::program!(device))
+//         .collect::<Result<_, _>>()
+//         .expect("Cannot create programs!");
+//     let mut kern = FftKernel::<Fr>::create(programs).expect("Cannot initialize kernel!");
+
+//     for log_d in 1..=20 {
+//         let d = 1 << log_d;
+
+//         let mut v1_coeffs = (0..d).map(|_| Fr::random(&mut rng)).collect::<Vec<_>>();
+//         let v1_omega = omega::<Fr>(v1_coeffs.len());
+//         let mut v2_coeffs = v1_coeffs.clone();
+//         let v2_omega = v1_omega;
+
+//         println!("Testing FFT for {} elements...", d);
+
+//         let mut now = Instant::now();
+
+//         kern.radix_fft(&mut v1_coeffs, &v1_omega, log_d).expect("GPU FFT failed!");
+
+//         //kern.radix_fft_many(&mut [&mut v1_coeffs], &[v1_omega], &[log_d])
+//         //    .expect("GPU FFT failed!");
+//         let gpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+//         println!("GPU took {}ms.", gpu_dur);
+
+//         now = Instant::now();
+//         if log_d <= log_threads {
+//             serial_fft::<Fr>(&mut v2_coeffs, &v2_omega, log_d);
+//         } else {
+//             parallel_fft::<Fr>(&mut v2_coeffs, &worker, &v2_omega, log_d, log_threads);
+//         }
+//         let cpu_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+//         println!("CPU ({} cores) took {}ms.", 1 << log_threads, cpu_dur);
+
+//         println!("Speedup: x{}", cpu_dur as f32 / gpu_dur as f32);
+
+//         assert!(v1_coeffs == v2_coeffs);
+//         println!("============================");
+
+//     }
+// }

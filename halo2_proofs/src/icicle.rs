@@ -144,3 +144,16 @@ pub fn multiexp_on_device<C: CurveAffine>(
 
     c_from_icicle_point::<C>(h_commit_result)
 }
+
+// pub fun fft_on_device() {
+
+//     let cfg = ntt::NTTConfig::<Bn254ScalarField>::default();
+
+//     // let mut context = GPU_CONTEXT.as_mut().unwrap();
+//     // let mut g = GPU_G.as_mut().unwrap();
+//     // let mut g_lagrange = GPU_G_LAGRANGE.as_mut().unwrap();
+
+//     // let mut d_commit_result = commit_bn254(&mut g, &mut g_lagrange, 10);
+//     // let mut h_commit_result = Point_BN254::zero();
+//     // d_commit_result.copy_to(&mut h_commit_result).unwrap();
+// }

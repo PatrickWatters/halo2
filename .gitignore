@@ -4,3 +4,6 @@ Cargo.lock
 .vscode
 **/*.html
 .DS_Store
+halo2_proofs/halo2_ffts.csv
+halo2_proofs/halo2_msms.csv
+halo2_proofs/halo2_prover.csv

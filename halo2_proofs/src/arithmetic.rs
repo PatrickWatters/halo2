@@ -13,6 +13,103 @@ pub use halo2curves::{CurveAffine, CurveExt};
 use super::icicle;
 #[cfg(feature = "icicle_gpu")]
 use rustacuda::prelude::DeviceBuffer;
+use csv::Writer;
+use std::path::Path;
+use serde::Serialize;
+use std::time::Instant;
+use std::error::Error;
+
+#[derive(Serialize, Debug)]
+struct FFTLoggingInfo {     
+    size: u32,
+    logn: u32,
+    fft_duration: f64,
+    device: String,
+}
+
+impl FFTLoggingInfo {
+    // Constructor for FFTLoggingInfo
+    fn new(size: u32, logn: u32, fft_duration: f64, device: &str) -> Self {
+        FFTLoggingInfo {
+            size,
+            logn,
+            fft_duration,
+            device: device.to_string(),
+        }
+    }
+}
+
+#[derive(Serialize, Debug)]
+struct MSMLoggingInfo {     
+    num_coeffs: u32,
+    msm_duration: f64,
+    device: String,
+
+}
+
+fn log_fft_stats(stat_collector:FFTLoggingInfo)-> Result<(), Box<dyn Error>>
+{  
+    let filename = "halo2_ffts.csv";
+    let file_exists = Path::new(filename).exists();
+    // Open the file in append mode, create it if it does not exist
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .append(true)
+        .open(filename)?;
+
+    // Create a CSV writer
+    let mut wtr = Writer::from_writer(file);
+
+
+    if !file_exists {
+        wtr.write_record(&["size", "log_n", "device", "duration(s)"])?;
+    }
+    // Write the record with proper type conversion
+    wtr.write_record(&[
+        stat_collector.size.to_string(),
+        stat_collector.logn.to_string(),
+        stat_collector.device,
+        stat_collector.fft_duration.to_string(),
+    ])?;
+    wtr.flush()?;
+    Ok(())
+ 
+}
+
+fn log_msm_stats(stat_collector:MSMLoggingInfo)-> Result<(), Box<dyn Error>>
+{   
+    let filename = "halo2_msms.csv";
+    let file_exists = Path::new(filename).exists();
+    // Open or create the file
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .append(true)
+        .open(filename)?;
+    // Create a CSV writer
+      
+    let mut wtr = csv::Writer::from_writer(file);
+
+      // Write header if the file does not already exist
+      if !file_exists {
+          wtr.write_record(&["num_coeffs", "device", "duration(s)"])?;
+      }
+    
+    // Write the logging information
+    wtr.write_record(&[
+        &stat_collector.num_coeffs.to_string(),
+        &stat_collector.device.to_string(),
+        &stat_collector.msm_duration.to_string(),
+
+
+    ])?;
+    // Ensure all data is written to the file
+    wtr.flush()?;
+    Ok(())
+}
+
+
 
 /// This represents an element of a group with basic operations that can be
 /// performed. This allows an FFT implementation (for example) to operate
@@ -143,6 +240,20 @@ pub fn small_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::C
     acc
 }
 
+/// Performs a FFFT operation on GPU
+#[cfg(feature = "icicle_gpu")]
+pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
+    a: &mut [G],
+    omega: Scalar,
+    log_n: u32,
+) {
+    icicle::ntt::
+    icicle::fft_on_device::<Scalar, G>(a, omega, log_n);
+    let d = 1 << log_n;
+    // Using default config
+    let cfg = ntt::NTTConfig::<Bn254ScalarField>::default();
+}
+
 #[cfg(feature = "icicle_gpu")]
 /// Performs a multi-exponentiation operation on GPU using Icicle library
 pub fn best_multiexp_gpu<C: CurveAffine>(coeffs: &[C::Scalar], is_lagrange: bool) -> C::Curve {
@@ -160,8 +271,16 @@ pub fn best_multiexp_gpu<C: CurveAffine>(coeffs: &[C::Scalar], is_lagrange: bool
 pub fn best_multiexp_cpu<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
     assert_eq!(coeffs.len(), bases.len());
 
+    let mut stat_collector = MSMLoggingInfo{
+        num_coeffs: coeffs.len() as u32,
+        msm_duration: 0.0,
+        device: String::from("cpu"),
+    };
+
     let num_threads = multicore::current_num_threads();
-    if coeffs.len() > num_threads {
+    let start_time = Instant::now();
+
+    let result = if coeffs.len() > num_threads {
         let chunk = coeffs.len() / num_threads;
         let num_chunks = coeffs.chunks(chunk).len();
         let mut results = vec![C::Curve::identity(); num_chunks];
@@ -183,8 +302,19 @@ pub fn best_multiexp_cpu<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C
         let mut acc = C::Curve::identity();
         multiexp_serial(coeffs, bases, &mut acc);
         acc
+    };
+    let total_msm_time = start_time.elapsed();
+    stat_collector.msm_duration = total_msm_time.as_secs_f64();
+    // Handle potential logging errors
+    if let Err(e) = log_msm_stats(stat_collector) {
+        eprintln!("Failed to log MSM stats: {}", e);
     }
+    result
+
 }
+
+
+
 
 /// Performs a radix-$2$ Fast-Fourier Transformation (FFT) on a vector of size
 /// $n = 2^k$, when provided `log_n` = $k$ and an element of multiplicative
@@ -197,6 +327,17 @@ pub fn best_multiexp_cpu<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C
 ///
 /// This will use multithreading if beneficial.
 pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+    
+    let mut stat_collector = FFTLoggingInfo::new(
+        a.len() as u32,
+        log_n,
+        0.0, // placeholder for fft_duration
+        "cpu"
+    );
+
+    let timer = Instant::now();
+
+    
     fn bitreverse(mut n: usize, l: usize) -> usize {
         let mut r = 0;
         for _ in 0..l {
@@ -259,6 +400,10 @@ pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, 
     } else {
         recursive_butterfly_arithmetic(a, n, 1, &twiddles)
     }
+
+    let total_fft_time = timer.elapsed();
+    stat_collector.fft_duration = total_fft_time.as_secs_f64();
+    let _ = log_fft_stats(stat_collector);
 }
 
 /// This perform recursive butterfly arithmetic
