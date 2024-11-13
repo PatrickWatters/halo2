@@ -13,7 +13,6 @@ use crate::{
 use super::{Coeff, ExtendedLagrangeCoeff, LagrangeCoeff, Polynomial, Rotation};
 use ff::WithSmallOrderMulGroup;
 use group::{ff::{BatchInvert, Field}, Group};
-use halo2curves::CurveAffine;
 
 use std::marker::PhantomData;
 
@@ -571,7 +570,8 @@ fn test_l_i() {
 
 #[test]
 fn test_msm()
-{   use crate::poly::EvaluationDomain;
+{
+// {   use crate::poly::EvaluationDomain;
     // use ark_std::{end_timer, start_timer};
     use halo2curves::bn256::{Bn256, Fr, G1Affine, G1}; // Replace with appropriate curve
     use std::time::Instant;
