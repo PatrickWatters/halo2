@@ -13,6 +13,7 @@ use crate::{
 use super::{Coeff, ExtendedLagrangeCoeff, LagrangeCoeff, Polynomial, Rotation};
 use ff::WithSmallOrderMulGroup;
 use group::{ff::{BatchInvert, Field}, Group};
+// use group::{ff::{BatchInvert, Field}, Group};
 
 use std::marker::PhantomData;
 
@@ -582,13 +583,13 @@ fn test_msm()
     use crate::halo2curves::pairing::Engine;
     #[cfg(feature = "icicle_gpu")]
     use crate::{
-        arithmetic::{best_fft, parallelize, best_multiexp_gpu},
+        arithmetic::{best_fft, parallelize, best_multiexp},
         plonk::Assigned,
     };
 
     #[cfg(not(feature = "icicle_gpu"))]
     use crate::{
-        arithmetic::{best_fft, parallelize, best_multiexp_cpu},
+        arithmetic::{best_fft, parallelize, best_multiexp},
         plonk::Assigned,
     };
 
@@ -615,9 +616,9 @@ fn test_msm()
         // Run the multi-exponentiation using the best_multiexp_cpu function
         let start_time = Instant::now();
         #[cfg(not(feature = "icicle_gpu"))]
-        let result = best_multiexp_cpu(&coeffs, &bases);
+        let result = best_multiexp(&coeffs, &bases);
         #[cfg(feature = "icicle_gpu")]
-        let result = best_multiexp_gpu(&coeffs, &bases);
+        let result = best_multiexp(&coeffs, &bases);
 
         let elapsed_time = start_time.elapsed();
 
@@ -636,7 +637,7 @@ fn test_msm()
 
 
 #[test]
-fn test_fft() {
+fn test_fft_cpu() {
     use crate::poly::EvaluationDomain;
     // use ark_std::{end_timer, start_timer};
     use std::time::Instant;
@@ -666,6 +667,36 @@ fn test_fft() {
     }
 }
 
+#[test]
+fn test_fft_gpu() {
+    use crate::poly::EvaluationDomain;
+    // use ark_std::{end_timer, start_timer};
+    use std::time::Instant;
+    use halo2curves::bn256::Fr;
+    use rand_core::OsRng;
+
+    for k in 16..=20 {
+        let rng = OsRng;
+        // polynomial degree n = 2^k
+        let n = 1u64 << k;
+        let log_n = k; // log_n is just k because n = 2^k
+        // polynomial coeffs
+        let coeffs: Vec<_> = (0..n).map(|_| Fr::random(rng)).collect();
+        // evaluation domain
+        let domain: EvaluationDomain<Fr> = EvaluationDomain::new(1, k);
+
+        let message = format!("prev_fft degree {}", k);
+        // let start = start_timer!(|| message);
+        let timer =  Instant::now();
+
+        let mut prev_fft_coeffs = coeffs.clone();
+
+        best_fft(&mut prev_fft_coeffs, domain.get_omega(), log_n);
+        // best_multiexp_gpu(&mut prev_fft_coeffs, domain.get_omega(), log_n);
+        let elapsed = timer.elapsed();
+        println!("prev_fft degree {} took {:?}", k, elapsed);
+    }
+}
 
 // #[test]
 // fn test_fft_gpu() {

@@ -15,6 +15,18 @@ pub use halo2curves::{CurveAffine, CurveExt};
 // use ec_gpu_gen::fft_cpu;
 // use ec_gpu_gen::threadpool::Worker;
 
+#[cfg(feature = "gpu")]
+use {
+    ec_gpu_gen,
+    ec_gpu_gen::rust_gpu_tools::{program_closures, Device, Program, Vendor, CUDA_CORES},
+    ec_gpu_gen::fft::FftKernel,
+    halo2curves::bn256::Bn256,
+    ec_gpu_gen::threadpool::Worker,
+    ec_gpu_gen::multiexp::MultiexpKernel,
+    std::sync::Arc,
+};
+
+
 
 #[cfg(feature = "icicle_gpu")]
 use super::icicle;
@@ -275,7 +287,7 @@ pub fn best_multiexp_gpu<C: CurveAffine>(coeffs: &[C::Scalar], is_lagrange: bool
 /// This function will panic if coeffs and bases have a different length.
 ///
 /// This will use multithreading if beneficial.
-pub fn best_multiexp_cpu<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
+pub fn cpu_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
     assert_eq!(coeffs.len(), bases.len());
 
     let mut stat_collector = MSMLoggingInfo{
@@ -320,33 +332,45 @@ pub fn best_multiexp_cpu<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C
 
 }
 
-// /// Wrap `gpu_fft_multiple`
-// #[cfg(feature = "gpu")]
-// pub fn best_fft_gpu<Scalar: Field, G: FftGroup<Scalar>>(
-//     polys: &mut [&mut [G]],
-//     omega: Scalar,
-//     log_n: u32,
-// ) -> gpu::GPUResult<()> {
+pub fn gpu_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> Result<C::Curve, ec_gpu_gen::EcError>{
 
-//     let d = 1 << log_n;
+    assert_eq!(coeffs.len(), bases.len());
 
-//     let mut now = Instant::now();
-//     let mut kern: Option<LockedMultiFFTKernel<_,_>> = Some(LockedMultiFFTKernel::<_,_>::new(log_n as usize, false));
-//     let create_kern_dur = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
-//     println!("create_kern took {}ms.", create_kern_dur);
-    
-//     //now = Instant::now();  
-//     if let Some(ref mut kern) = kern {
-//         if kern
-//             .with(|k: &mut gpu::MultiFFTKernel<Scalar,G>| k.fft_multiple(polys, &omega, log_n))
-//             .is_ok()
-//         {
-//             //println!("gpu_fft_multiple_total took {}ms.", now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64);
-//             return Ok(());
-//         }
-//     } 
-//     Ok(())
-// }
+    let mut stat_collector = MSMLoggingInfo{
+        num_coeffs: coeffs.len() as u32,
+        msm_duration: 0.0,
+        device: String::from("cpu"),
+    };
+    let start_time = Instant::now();
+    let devices = Device::all();
+    let mut kern = MultiexpKernel::<Bn256>::create(&devices).expect("Cannot initialize kernel!");
+
+    let pool = Worker::new();
+    let t: Arc<Vec<_>> = Arc::new(coeffs.iter().map(|a| a.to_repr()).collect());
+    let g:Arc<Vec<_>> = Arc::new(bases.to_vec().clone());
+    let g2 = (g.clone(), 0);
+    let (bss, skip) =  (g2.0.clone(), g2.1);
+    let result = kern.multiexp(&pool, bss, t, skip).map_err(Into::into);
+    let total_msm_time = start_time.elapsed();
+    stat_collector.msm_duration = total_msm_time.as_secs_f64();
+    // Handle potential logging errors
+    if let Err(e) = log_msm_stats(stat_collector) {
+        eprintln!("Failed to log MSM stats: {}", e);
+    }
+    result
+}
+
+
+pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
+    #[cfg(feature = "gpu")]
+    let result = gpu_multiexp(coeffs, bases).unwrap();
+
+    #[cfg(not(any(feature = "gpu", feature = "opencl")))]
+    let result = cpu_multiexp(coeffs, bases);
+
+    result
+}
+
 
 
 /// Performs a radix-$2$ Fast-Fourier Transformation (FFT) on a vector of size
@@ -360,6 +384,32 @@ pub fn best_multiexp_cpu<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C
 ///
 /// This will use multithreading if beneficial.
 pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+    #[cfg(feature = "gpu")]
+    gpu_fft(a, omega, log_n);
+
+    #[cfg(not(any(feature = "gpu", feature = "opencl")))]
+    cpu_fft(a, omega, log_n);
+}
+
+pub fn gpu_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+    
+    let mut stat_collector = FFTLoggingInfo::new(
+        a.len() as u32,
+        log_n,
+        0.0, // placeholder for fft_duration
+        "gpu"
+    );
+    let timer = Instant::now();
+    let devices = Device::all();
+    let mut kern = FftKernel::<Bn256>::create(&devices).expect("Cannot initialize kernel!");
+    kern.radix_fft_many(&mut [a], &[omega], &[log_n]).expect("GPU FFT failed!");
+
+    let total_fft_time = timer.elapsed();
+    stat_collector.fft_duration = total_fft_time.as_secs_f64();
+    let _ = log_fft_stats(stat_collector);
+}
+
+pub fn cpu_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
     
     let mut stat_collector = FFTLoggingInfo::new(
         a.len() as u32,
@@ -438,6 +488,87 @@ pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, 
     stat_collector.fft_duration = total_fft_time.as_secs_f64();
     let _ = log_fft_stats(stat_collector);
 }
+
+
+// pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, log_n: u32) {
+    
+//     let mut stat_collector = FFTLoggingInfo::new(
+//         a.len() as u32,
+//         log_n,
+//         0.0, // placeholder for fft_duration
+//         "cpu"
+//     );
+
+//     let timer = Instant::now();
+
+    
+//     fn bitreverse(mut n: usize, l: usize) -> usize {
+//         let mut r = 0;
+//         for _ in 0..l {
+//             r = (r << 1) | (n & 1);
+//             n >>= 1;
+//         }
+//         r
+//     }
+
+//     let threads = multicore::current_num_threads();
+//     let log_threads = log2_floor(threads);
+//     let n = a.len();
+//     assert_eq!(n, 1 << log_n);
+
+//     for k in 0..n {
+//         let rk = bitreverse(k, log_n as usize);
+//         if k < rk {
+//             a.swap(rk, k);
+//         }
+//     }
+
+//     // precompute twiddle factors
+//     let twiddles: Vec<_> = (0..(n / 2))
+//         .scan(Scalar::ONE, |w, _| {
+//             let tw = *w;
+//             *w *= &omega;
+//             Some(tw)
+//         })
+//         .collect();
+
+//     if log_n <= log_threads {
+//         let mut chunk = 2_usize;
+//         let mut twiddle_chunk = n / 2;
+//         for _ in 0..log_n {
+//             a.chunks_mut(chunk).for_each(|coeffs| {
+//                 let (left, right) = coeffs.split_at_mut(chunk / 2);
+
+//                 // case when twiddle factor is one
+//                 let (a, left) = left.split_at_mut(1);
+//                 let (b, right) = right.split_at_mut(1);
+//                 let t = b[0];
+//                 b[0] = a[0];
+//                 a[0] += &t;
+//                 b[0] -= &t;
+
+//                 left.iter_mut()
+//                     .zip(right.iter_mut())
+//                     .enumerate()
+//                     .for_each(|(i, (a, b))| {
+//                         let mut t = *b;
+//                         t *= &twiddles[(i + 1) * twiddle_chunk];
+//                         *b = *a;
+//                         *a += &t;
+//                         *b -= &t;
+//                     });
+//             });
+//             chunk *= 2;
+//             twiddle_chunk /= 2;
+//         }
+//     } else {
+//         recursive_butterfly_arithmetic(a, n, 1, &twiddles)
+//     }
+
+//     let total_fft_time = timer.elapsed();
+//     stat_collector.fft_duration = total_fft_time.as_secs_f64();
+//     let _ = log_fft_stats(stat_collector);
+// }
 
 /// This perform recursive butterfly arithmetic
 pub fn recursive_butterfly_arithmetic<Scalar: Field, G: FftGroup<Scalar>>(
@@ -741,5 +872,119 @@ fn test_lagrange_interpolate() {
         for (point, eval) in points.iter().zip(evals) {
             assert_eq!(eval_polynomial(&poly, *point), *eval);
         }
+    }
+}
+
+
+
+#[test]
+fn test_compare_cpu_gpu_msm() {
+    use halo2curves::bn256::{Bn256, Fr, G1Affine, G1}; // Replace with appropriate curve
+    use std::time::Instant;
+    use rand_core::OsRng;
+    use rand_chacha::ChaChaRng;
+    use rand_core::{SeedableRng, RngCore};
+    use group::{Curve, prime::PrimeCurveAffine}; // For scalar multiplication and identity functions
+    use crate::halo2curves::pairing::Engine;
+    use cpu_multiexp;
+    use gpu_multiexp;
+    
+    // Define the range of MSM sizes to test, from 2^10 to 2^16
+    let start_exp = 10;
+    let end_exp = 15;
+    let seed = [0u8; 32]; // You can change this to any 32-byte array
+    let mut rng = ChaChaRng::from_seed(seed);
+        
+    for k in start_exp..=end_exp {
+        let num_elements = 1 << k;
+        println!("\nTesting with num_elements: {:?}", num_elements);
+
+        // Generate random coefficients (scalars)
+        let coeffs: Vec<Fr> = (0..num_elements).map(|_| Fr::random(&mut rng)).collect();
+
+        let mut bases = (0..num_elements)
+        .map(|_| G1Affine::random(&mut rng)) // Generate random points for each base
+        .collect::<Vec<_>>();
+        
+        // Run the multi-exponentiation using the best_multiexp_cpu function
+        let timer = Instant::now();
+        let cpu_result = cpu_multiexp(&coeffs, &bases);
+        let cpu_elapsed = timer.elapsed();
+        println!("CPU Result: {:?}", cpu_result.to_affine());
+        println!("CPU elapsed time: {:?}", cpu_elapsed);
+
+        // Run the multi-exponentiation using the best_multiexp_gpu function
+        let timer = Instant::now();
+        let gpu_result = gpu_multiexp(&coeffs, &bases).unwrap();
+        let gpu_elapsed = timer.elapsed();
+        println!("GPU Result: {:?}", gpu_result.to_affine());
+        println!("GPU elapsed time: {:?}", gpu_elapsed);
+
+        println!("Speedup: x{}", cpu_elapsed.as_secs_f32() / gpu_elapsed.as_secs_f32());
+
+        assert_eq!(cpu_result.to_affine(), gpu_result.to_affine())
+        // Verify that the results match
+        // assert_eq!(cpu_result, gpu_result, "MSM result does not match for size {}", num_elements);
+
+
+        // // Output results for this size
+        // println!("num_elements: {}, elapsed time: {:?}, result {:?}", num_elements, elapsed_time, result);
+
+        // // // Optional: Verify the result with a serial MSM implementation
+        // let mut expected_result = G1::identity();
+        // for (base, coeff) in bases.iter().zip(coeffs.iter()) {
+        //     // Convert base from G1Affine to G1 before multiplication.
+        //     expected_result +=  G1Affine::from(base * coeff);
+        // }
+        // assert_eq!(G1Affine::from(result), G1Affine::from(expected_result), "MSM result does not match for size {}", num_elements);
+    }
+}
+
+
+
+
+#[test]
+fn test_compare_cpu_gpu_fft() {
+    use crate::poly::EvaluationDomain;
+    use std::time::Instant;
+    use halo2curves::bn256::Fr;
+    use rand_core::OsRng;
+    use rand_chacha::ChaChaRng;
+    use rand_core::{SeedableRng, RngCore};
+    use cpu_fft;
+    use gpu_fft;
+
+    let seed = [0u8; 32]; // You can change this to any 32-byte array
+    let mut rng = ChaChaRng::from_seed(seed);
+    
+    for k in 16..=20 {
+        // polynomial degree n = 2^k
+        let n = 1u64 << k;
+        let log_n = k; // log_n is just k because n = 2^k
+        
+        // polynomial coeffs
+        let inital_coeffs: Vec<_> = (0..n).map(|_| Fr::random(&mut rng)).collect();
+        
+        let mut cpu_coeffs = inital_coeffs.clone();
+        let mut gpu_coeffs = inital_coeffs.clone();
+        // evaluation domain
+        let domain: EvaluationDomain<Fr> = EvaluationDomain::new(1, k);
+
+        println!("Testing FFT for {} elements, degree {}...", n, k);
+        
+        let timer = Instant::now();
+        cpu_fft(&mut cpu_coeffs, domain.get_omega(), k);
+        let cpu_dur = timer.elapsed();
+        println!("CPU FFT took {:?}", cpu_dur);
+
+        let timer = Instant::now(); // Reset timer
+        gpu_fft(&mut gpu_coeffs, domain.get_omega(), k);
+        let gpu_dur = timer.elapsed();
+        println!("GPU FFT took {:?}", gpu_dur);
+
+        println!("Speedup: x{}", cpu_dur.as_secs_f32() / gpu_dur.as_secs_f32());
+        // assert_eq!(cpu_coeffs, inital_coeffs);
+        // Allow small relative error
+        assert_eq!(cpu_coeffs, gpu_coeffs);
     }
 }

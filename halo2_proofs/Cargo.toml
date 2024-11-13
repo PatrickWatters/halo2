@@ -52,7 +52,9 @@ log = { version = "0.4.17", default_features = false }
 backtrace = { version = "0.3", optional = true }
 ff = "0.13"
 group = "0.13"
-halo2curves = { git = "https://github.com/privacy-scaling-explorations/halo2curves", rev="9fff22c", default-features = false }
+halo2curves = {path = "../../halo2curves", default-features = false}
+
+# halo2curves = { git = "https://github.com/privacy-scaling-explorations/halo2curves", rev="9fff22c", default-features = false }
 csv = "1.1"
 rand_core = { version = "0.6", default-features = false }
 tracing = "0.1"
@@ -73,6 +75,11 @@ rustacuda = { version = "0.1", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_derive = { version = "1"}
 
+# #GPU Itegration
+ec-gpu-gen ={ path = "../../ec-gpu/ec-gpu-gen",optional = true}
+ec-gpu ={ path = "../../ec-gpu/ec-gpu",optional = true}
+fs2 = { version = "0.4.3", optional = true }
+
 # Developer tooling dependencies
 plotters = { version = "0.3.0", default-features = false, optional = true }
 tabbycat = { version = "0.1", features = ["attributes"], optional = true }
@@ -92,7 +99,7 @@ serde_json = "1"
 getrandom = { version = "0.2", features = ["js"] }
 
 [features]
-default = ["batch", "bits"]
+default = ["batch", "bits", "gpu"]
 dev-graph = ["plotters", "tabbycat"]
 test-dev-graph = [
     "dev-graph",
@@ -108,6 +115,7 @@ batch = ["rand_core/getrandom"]
 circuit-params = []
 counter = ["lazy_static"]
 icicle_gpu = ["icicle", "rustacuda"]
+gpu = ["ec-gpu-gen", "ec-gpu", "fs2"]
 mv-lookup = []
 # cost-estimator = ["serde", "serde_derive"]
 cost-estimator = []

@@ -22,7 +22,7 @@ use std::fmt::Debug;
 #[derive(Debug, Clone)]
 pub struct GuardKZG<'params, E: MultiMillerLoop + Debug>
 where
-    E::G1Affine: CurveAffine<ScalarExt = <E as Engine>::Fr, CurveExt = <E as Engine>::G1>,
+    E::G1Affine: CurveAffine<ScalarExt = <E as Engine>::Scalar, CurveExt = <E as Engine>::G1>,
     E::G1: CurveExt<AffineExt = E::G1Affine>,
 {
     pub(crate) msm_accumulator: DualMSM<'params, E>,
@@ -32,7 +32,7 @@ where
 impl<'params, E> Guard<KZGCommitmentScheme<E>> for GuardKZG<'params, E>
 where
     E: MultiMillerLoop + Debug,
-    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Fr, CurveExt = <E as Engine>::G1>,
+    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Scalar, CurveExt = <E as Engine>::G1>,
     E::G1: CurveExt<AffineExt = E::G1Affine>,
     E::G2Affine: SerdeCurveAffine,
 {
@@ -42,7 +42,7 @@ where
 /// KZG specific operations
 impl<'params, E: MultiMillerLoop + Debug> GuardKZG<'params, E>
 where
-    E::G1Affine: CurveAffine<ScalarExt = <E as Engine>::Fr, CurveExt = <E as Engine>::G1>,
+    E::G1Affine: CurveAffine<ScalarExt = <E as Engine>::Scalar, CurveExt = <E as Engine>::G1>,
     E::G1: CurveExt<AffineExt = E::G1Affine>,
 {
     pub(crate) fn new(msm_accumulator: DualMSM<'params, E>) -> Self {
@@ -54,7 +54,7 @@ where
 #[derive(Clone, Debug)]
 pub struct AccumulatorStrategy<'params, E: Engine>
 where
-    E::G1Affine: CurveAffine<ScalarExt = <E as Engine>::Fr, CurveExt = <E as Engine>::G1>,
+    E::G1Affine: CurveAffine<ScalarExt = <E as Engine>::Scalar, CurveExt = <E as Engine>::G1>,
     E::G1: CurveExt<AffineExt = E::G1Affine>,
 {
     pub(crate) msm_accumulator: DualMSM<'params, E>,
@@ -62,7 +62,7 @@ where
 
 impl<'params, E: MultiMillerLoop + Debug> AccumulatorStrategy<'params, E>
 where
-    E::G1Affine: CurveAffine<ScalarExt = <E as Engine>::Fr, CurveExt = <E as Engine>::G1>,
+    E::G1Affine: CurveAffine<ScalarExt = <E as Engine>::Scalar, CurveExt = <E as Engine>::G1>,
     E::G1: CurveExt<AffineExt = E::G1Affine>,
 {
     /// Constructs an empty batch verifier
@@ -82,7 +82,7 @@ where
 #[derive(Clone, Debug)]
 pub struct SingleStrategy<'params, E: Engine>
 where
-    E::G1Affine: CurveAffine<ScalarExt = <E as Engine>::Fr, CurveExt = <E as Engine>::G1>,
+    E::G1Affine: CurveAffine<ScalarExt = <E as Engine>::Scalar, CurveExt = <E as Engine>::G1>,
     E::G1: CurveExt<AffineExt = E::G1Affine>,
 {
     pub(crate) msm: DualMSM<'params, E>,
@@ -90,7 +90,7 @@ where
 
 impl<'params, E: MultiMillerLoop + Debug> SingleStrategy<'params, E>
 where
-    E::G1Affine: CurveAffine<ScalarExt = <E as Engine>::Fr, CurveExt = <E as Engine>::G1>,
+    E::G1Affine: CurveAffine<ScalarExt = <E as Engine>::Scalar, CurveExt = <E as Engine>::G1>,
     E::G1: CurveExt<AffineExt = E::G1Affine>,
 {
     /// Constructs an empty batch verifier
@@ -112,7 +112,7 @@ impl<
         >,
     > VerificationStrategy<'params, KZGCommitmentScheme<E>, V> for AccumulatorStrategy<'params, E>
 where
-    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Fr, CurveExt = <E as Engine>::G1>,
+    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Scalar, CurveExt = <E as Engine>::G1>,
     E::G1: CurveExt<AffineExt = E::G1Affine>,
     E::G2Affine: SerdeCurveAffine,
 {
@@ -126,7 +126,7 @@ where
         mut self,
         f: impl FnOnce(V::MSMAccumulator) -> Result<V::Guard, Error>,
     ) -> Result<Self::Output, Error> {
-        self.msm_accumulator.scale(E::Fr::random(OsRng));
+        self.msm_accumulator.scale(E::Scalar::random(OsRng));
 
         // Guard is updated with new msm contributions
         let guard = f(self.msm_accumulator)?;
@@ -151,7 +151,7 @@ impl<
         >,
     > VerificationStrategy<'params, KZGCommitmentScheme<E>, V> for SingleStrategy<'params, E>
 where
-    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Fr, CurveExt = <E as Engine>::G1>,
+    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Scalar, CurveExt = <E as Engine>::G1>,
     E::G1: CurveExt<AffineExt = E::G1Affine>,
     E::G2Affine: SerdeCurveAffine,
 {
