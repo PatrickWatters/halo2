@@ -18,12 +18,13 @@ pub use halo2curves::{CurveAffine, CurveExt};
 #[cfg(feature = "gpu")]
 use {
     ec_gpu_gen,
-    ec_gpu_gen::rust_gpu_tools::{program_closures, Device, Program, Vendor, CUDA_CORES},
+    ec_gpu_gen::rust_gpu_tools::{Device},
     ec_gpu_gen::fft::FftKernel,
     halo2curves::bn256::Bn256,
     ec_gpu_gen::threadpool::Worker,
     ec_gpu_gen::multiexp::MultiexpKernel,
     std::sync::Arc,
+    ec_gpu_gen::program
 };
 
 
@@ -343,6 +344,12 @@ pub fn gpu_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> Result
     };
     let start_time = Instant::now();
     let devices = Device::all();
+    // let programs = devices
+    // .iter()
+    // .map(|device| ec_gpu_gen::program!(device))
+    // .collect::<Result<_, _>>()
+    // .expect("Cannot create programs!");
+
     let mut kern = MultiexpKernel::<Bn256>::create(&devices).expect("Cannot initialize kernel!");
 
     let pool = Worker::new();
@@ -401,6 +408,14 @@ pub fn gpu_fft<Scalar: Field, G: FftGroup<Scalar>>(a: &mut [G], omega: Scalar, l
     );
     let timer = Instant::now();
     let devices = Device::all();
+    // let programs = devices
+    //     .iter()
+    //     .map(|device| ec_gpu_gen::program!(device))
+    //     .collect::<Result<_, _>>()
+    //     .expect("Cannot create programs!");
+
+    // let mut kern = FftKernel::<Bn256>::create(programs).expect("Cannot initialize kernel!");
+
     let mut kern = FftKernel::<Bn256>::create(&devices).expect("Cannot initialize kernel!");
     kern.radix_fft_many(&mut [a], &[omega], &[log_n]).expect("GPU FFT failed!");
 

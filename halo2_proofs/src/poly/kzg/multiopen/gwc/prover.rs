@@ -25,7 +25,7 @@ pub struct ProverGWC<'params, E: Engine> {
 /// Create a multi-opening proof
 impl<'params, E: Engine + Debug> Prover<'params, KZGCommitmentScheme<E>> for ProverGWC<'params, E>
 where
-    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Scalar, CurveExt = <E as Engine>::G1>,
+    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Fr, CurveExt = <E as Engine>::G1>,
     E::G1: CurveExt<AffineExt = E::G1Affine>,
     E::G2Affine: SerdeCurveAffine,
 {

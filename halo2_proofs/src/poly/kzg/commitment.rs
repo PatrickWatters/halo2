@@ -43,12 +43,11 @@ pub struct KZGCommitmentScheme<E: Engine> {
 
 impl<E: Engine + Debug> CommitmentScheme for KZGCommitmentScheme<E>
 where
-    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Scalar, CurveExt = <E as Engine>::G1>,
+    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Fr, CurveExt = <E as Engine>::G1>,
     E::G1: CurveExt<AffineExt = E::G1Affine>,
     E::G2Affine: SerdeCurveAffine,
 {
-    // type Scalar = E::Fr;
-    type Scalar = E::Scalar;
+    type Scalar = E::Fr;
     type Curve = E::G1Affine;
 
     type ParamsProver = ParamsKZG<E>;
@@ -73,12 +72,12 @@ where
     pub fn setup<R: RngCore>(k: u32, rng: R) -> Self {
         // Largest root of unity exponent of the Engine is `2^E::Fr::S`, so we can
         // only support FFTs of polynomials below degree `2^E::Fr::S`.
-        assert!(k <= E::Scalar::S);
+        assert!(k <= E::Fr::S);
         let n: u64 = 1 << k;
 
         // Calculate g = [G1, [s] G1, [s^2] G1, ..., [s^(n-1)] G1] in parallel.
         let g1 = E::G1Affine::generator();
-        let s = <E::Scalar>::random(rng);
+        let s = <E::Fr>::random(rng);
 
         let mut g_projective = vec![E::G1::identity(); n as usize];
         parallelize(&mut g_projective, |g, start| {
@@ -99,14 +98,14 @@ where
         };
 
         let mut g_lagrange_projective = vec![E::G1::identity(); n as usize];
-        let mut root = E::Scalar::ROOT_OF_UNITY;
-        for _ in k..E::Scalar::S {
+        let mut root = E::Fr::ROOT_OF_UNITY;
+        for _ in k..E::Fr::S {
             root = root.square();
         }
-        let n_inv = E::Scalar::from(n)
+        let n_inv = E::Fr::from(n)
             .invert()
             .expect("inversion should be ok for n = 1<<k");
-        let multiplier = (s.pow_vartime([n]) - E::Scalar::ONE) * n_inv;
+        let multiplier = (s.pow_vartime([n]) - E::Fr::ONE) * n_inv;
         parallelize(&mut g_lagrange_projective, |g, start| {
             for (idx, g) in g.iter_mut().enumerate() {
                 let offset = start + idx;
@@ -306,7 +305,7 @@ pub type ParamsVerifierKZG<C> = ParamsKZG<C>;
 
 impl<'params, E: Engine + Debug> Params<'params, E::G1Affine> for ParamsKZG<E>
 where
-    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Scalar, CurveExt = <E as Engine>::G1>,
+    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Fr, CurveExt = <E as Engine>::G1>,
     E::G1: CurveExt<AffineExt = E::G1Affine>,
     E::G2Affine: SerdeCurveAffine,
 {
@@ -334,25 +333,7 @@ where
         MSMKZG::new()
     }
 
-    // fn commit_lagrange(&self, poly: &Polynomial<E::Fr, LagrangeCoeff>, _: Blind<E::Fr>) -> E::G1 {
-    //     let mut scalars = Vec::with_capacity(poly.len());
-    //     scalars.extend(poly.iter());
-    //     let bases = &self.g_lagrange;
-    //     let size = scalars.len();
-    //     assert!(bases.len() >= size);
-
-    //     #[cfg(feature = "icicle_gpu")]
-    //     if env::var("ENABLE_ICICLE_GPU").is_ok() && !icicle::should_use_cpu_msm(size) {
-    //         best_multiexp_gpu::<E::G1Affine>(&scalars, true)
-    //     } else {
-    //         best_multiexp_cpu(&scalars, &bases[0..size])
-    //     }
-
-    //     #[cfg(not(feature = "icicle_gpu"))]
-    //     best_multiexp_cpu(&scalars, &bases[0..size])
-    // }
-
-    fn commit_lagrange(&self, poly: &Polynomial<E::Scalar, LagrangeCoeff>, _: Blind<E::Scalar>) -> E::G1 {
+    fn commit_lagrange(&self, poly: &Polynomial<E::Fr, LagrangeCoeff>, _: Blind<E::Fr>) -> E::G1 {
         let mut scalars = Vec::with_capacity(poly.len());
         scalars.extend(poly.iter());
         let bases = &self.g_lagrange;
@@ -361,7 +342,7 @@ where
 
         #[cfg(feature = "icicle_gpu")]
         if env::var("ENABLE_ICICLE_GPU").is_ok() && !icicle::should_use_cpu_msm(size) {
-            best_multiexp_gpu::<E::G1Affine>(&scalars, true)
+            best_multiexp::<E::G1Affine>(&scalars, true)
         } else {
             best_multiexp(&scalars, &bases[0..size])
         }
@@ -369,7 +350,6 @@ where
         #[cfg(not(feature = "icicle_gpu"))]
         best_multiexp(&scalars, &bases[0..size])
     }
-
 
     /// Writes params to a buffer.
     fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -384,7 +364,7 @@ where
 
 impl<'params, E: Engine + Debug> ParamsVerifier<'params, E::G1Affine> for ParamsKZG<E>
 where
-    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Scalar, CurveExt = <E as Engine>::G1>,
+    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Fr, CurveExt = <E as Engine>::G1>,
     E::G1: CurveExt<AffineExt = E::G1Affine>,
     E::G2Affine: SerdeCurveAffine,
 {
@@ -392,7 +372,7 @@ where
 
 impl<'params, E: Engine + Debug> ParamsProver<'params, E::G1Affine> for ParamsKZG<E>
 where
-    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Scalar, CurveExt = <E as Engine>::G1>,
+    E::G1Affine: SerdeCurveAffine<ScalarExt = <E as Engine>::Fr, CurveExt = <E as Engine>::G1>,
     E::G1: CurveExt<AffineExt = E::G1Affine>,
     E::G2Affine: SerdeCurveAffine,
 {
@@ -406,7 +386,7 @@ where
         Self::setup(k, OsRng)
     }
 
-    fn commit(&self, poly: &Polynomial<E::Scalar, Coeff>, _: Blind<E::Scalar>) -> E::G1 {
+    fn commit(&self, poly: &Polynomial<E::Fr, Coeff>, _: Blind<E::Fr>) -> E::G1 {
         let mut scalars = Vec::with_capacity(poly.len());
         scalars.extend(poly.iter());
         let bases = &self.g;
