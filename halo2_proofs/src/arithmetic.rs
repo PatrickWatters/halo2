@@ -340,7 +340,7 @@ pub fn gpu_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> Result
     let mut stat_collector = MSMLoggingInfo{
         num_coeffs: coeffs.len() as u32,
         msm_duration: 0.0,
-        device: String::from("cpu"),
+        device: String::from("gpu"),
     };
     let start_time = Instant::now();
     let devices = Device::all();
